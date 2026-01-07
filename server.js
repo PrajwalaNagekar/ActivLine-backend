@@ -1,11 +1,8 @@
 import dotenv from 'dotenv';
 import http from 'http';
 import { Server } from 'socket.io';
-import connectDB from './config/db.js';
-import app from './server.js';
-import { initializeSocketIO } from './socket/chat.socket.js';
-import { restoreScheduledJobs } from './jobs/autoResumeScheduler.js';
-import { restoreAgScheduledJobs } from './jobs/agAutoResumeScheduler.js';
+import connectDB from './src/db/index.js';
+import app from './app.js';
 
 dotenv.config();
 
@@ -22,13 +19,13 @@ const startServer = async () => {
             },
         });
 
-        initializeSocketIO(io);
-
 
 
         const port = process.env.PORT
+        console.log(port);
+
         server.listen(port, '0.0.0.0', () => {
-            console.log(`🚀!! Server running on http://0.0.0.0:${port} at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+            console.log(`🚀!! Server running on ${port} at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
         });
     } catch (err) {
         console.error('Server startup failed:', err);

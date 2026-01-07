@@ -8,7 +8,7 @@ import {
 const sendSMS = async (
     mobileNumber,
     message,
-    templateId = "1707175101642561256"
+    templateId = "1707175101649961256"
 ) => {
     try {
         if (!mobileNumber || !message) {
