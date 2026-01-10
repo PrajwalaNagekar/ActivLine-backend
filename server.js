@@ -3,12 +3,16 @@ import http from 'http';
 import { Server } from 'socket.io';
 import connectDB from './src/db/index.js';
 import app from './app.js';
+import Admin from './src/models/auth/auth.model.js';
 
 dotenv.config();
 
 const startServer = async () => {
     try {
         await connectDB();
+
+        // Sync indexes to remove the unused 'phone_1' index causing duplicate key errors
+        await Admin.syncIndexes();
 
         const server = http.createServer(app);
         const io = new Server(server, {

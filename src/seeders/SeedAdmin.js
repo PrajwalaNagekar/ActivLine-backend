@@ -1,4 +1,4 @@
-import Admin from "../models/admin.model.js";
+import Admin from "../models/auth/auth.model.js";
 
 const seedAdmin = async () => {
     try {

@@ -1,41 +1,50 @@
 import jwt from "jsonwebtoken";
 import { asyncHandler } from "../utils/AsyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
-import Admin from "../models/admin.model.js";
-import Customer from "../models/customer.model.js";
+import Admin from "../models/auth/auth.model.js";
+// import Customer from "../models/customer.model.js";
 
-export const verifyJWT = asyncHandler(async (req, _, next) => {
-    const token =
-        req.cookies?.accessToken ||
-        req.header("Authorization")?.replace("Bearer ", "");
+export const verifyJWT = asyncHandler((req, _, next) => {
+   const token =
+    req.cookies?.accessToken ||
+    req.headers.authorization?.startsWith("Bearer ")
+      ? req.headers.authorization.replace("Bearer ", "")
+      : null;
 
+    // ❌ No token → Unauthorized
     if (!token) {
-        // If no token is present, throw an unauthorized error.
-        // throw new ApiError(401, "Unauthorized request. No token provided.");
-        return next();
+        throw new ApiError(401, "Unauthorized request");
     }
 
     try {
-        const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        // ✅ Verify token
+        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
 
-        const Customer =
-            (await Customer.findById(decodedToken?._id).select("-password")) ||
-            (await Admin.findById(decodedToken?._id).select("-password"));
+        /*
+          decoded contains:
+          {
+            _id,
+            role,
+            iat,
+            exp
+          }
+        */
 
-        if (!Customer) {
-            throw new ApiError(401, "Invalid Access Token");
-        }
+        // ✅ Attach user identity to request
+          req.user = {
+      _id: decoded._id,
+      role: decoded.role,
+    };
 
-        req.Customer = Customer;
         next();
     } catch (error) {
-        throw new ApiError(401, error?.message || "Invalid access token");
+        throw new ApiError(401, "Invalid or expired access token");
     }
 });
 
-export const isSuperAdmin = asyncHandler(async (req, _, next) => {
-    if (req.Customer?.userType !== "Admin") {
-        throw new ApiError(403, "Forbidden: This action is restricted to Sub Admins.");
+export const isSuperAdmin = asyncHandler((req, _, next) => {
+    if (req.user.role !== "Admin") {
+        throw new ApiError(403, "Forbidden: Super Admin only");
     }
     next();
 });
