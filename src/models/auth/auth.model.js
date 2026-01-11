@@ -18,6 +18,8 @@ const adminSchema = new mongoose.Schema({
     },
     
   refreshToken: { type: String, default: null },
+  resetOTP: { type: String, default: null },
+  resetOTPExpiry: { type: Date, default: null },
 }, { timestamps: true });
 
 adminSchema.pre("save", async function () {
@@ -31,7 +33,8 @@ adminSchema.methods.comparePassword = function (password) {
 
 adminSchema.methods.generateAccessToken = function () {
   return jwt.sign(
-    { _id: this._id, role: this.role },
+    { _id: this._id, role: this.role, email: this.email },
+
     process.env.ACCESS_TOKEN_SECRET,
     { expiresIn: "7d" }
   );
