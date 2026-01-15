@@ -1,4 +1,4 @@
-// src/repositories/admin/admin.profile.repository.js
+// src/repositories/auth/auth.profile.repository.js
 import Admin from "../../models/auth/auth.model.js";
 
 export const findById = async (id) => {

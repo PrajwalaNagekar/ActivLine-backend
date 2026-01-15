@@ -1,6 +1,7 @@
 // src/services/auth/profile.service.js
 import ApiError from "../../utils/ApiError.js";
-import * as ProfileRepo from "../../repositories/auth/admin.profile.repository.js";
+import bcrypt from "bcryptjs";
+import * as ProfileRepo from "../../repositories/auth/auth.profile.repository.js";
 
 // ✅ GET OWN PROFILE
 export const getMyProfile = async (userId) => {
@@ -60,4 +61,3 @@ const mapProfile = (user) => ({
   phone: user.phone,
   updatedAt: user.updatedAt,
 });
-

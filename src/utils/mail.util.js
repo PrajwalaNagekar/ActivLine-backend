@@ -1,0 +1,48 @@
+import nodemailer from "nodemailer";
+import ApiError from "./ApiError.js";
+
+const transporter = nodemailer.createTransport({
+  host: process.env.MAIL_HOST,
+  port: Number(process.env.MAIL_PORT),
+  secure: false, // TLS (587)
+  auth: {
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
+  },
+});
+
+// ✅ Verify mail server on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("❌ Mail server error:", error.message);
+  } else {
+    console.log("✅ Mail server is ready to send emails");
+  }
+});
+
+/**
+ * Send OTP email
+ */
+export const sendOTPEmail = async ({ to, otp }) => {
+  try {
+    await transporter.sendMail({
+      from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_USER}>`,
+      to,
+      subject: "Password Reset OTP",
+      html: `
+        <div style="font-family: Arial; padding: 12px">
+          <h2>Password Reset Request</h2>
+          <p>Your OTP is:</p>
+          <h1 style="color:#2563eb">${otp}</h1>
+          <p>This OTP is valid for <b>5 minutes</b>.</p>
+          <p>If you didn’t request this, ignore this email.</p>
+          <br/>
+          <small>– ActivLine Support</small>
+        </div>
+      `,
+    });
+  } catch (error) {
+    console.error("❌ Mail send failed:", error.message);
+    throw new ApiError(500, "Failed to send OTP email");
+  }
+};

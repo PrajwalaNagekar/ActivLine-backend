@@ -1,5 +1,6 @@
 import ApiError from "../../utils/ApiError.js";
 import { generateOTP } from "../../utils/otp.util.js";
+import { sendOTPEmail } from "../../utils/mail.util.js";
 import * as ForgotRepo from "../../repositories/auth/forgot.repository.js";
 
 /**
@@ -8,26 +9,27 @@ import * as ForgotRepo from "../../repositories/auth/forgot.repository.js";
 export const forgotPasswordService = async (email) => {
   const user = await ForgotRepo.findUserByEmail(email);
   if (!user) {
-    // 🔒 Do NOT reveal user existence in real systems (optional)
     throw new ApiError(404, "Email not registered");
   }
 
-  // 🔐 Prevent OTP spam (cooldown 1 min)
+  // ⏳ Prevent OTP spam (1 minute cooldown)
   if (user.resetOTPExpiry && user.resetOTPExpiry > Date.now() - 60 * 1000) {
-    throw new ApiError(429, "OTP already sent. Please wait before retrying");
+    throw new ApiError(429, "OTP already sent. Please wait 1 minute");
   }
 
   const otp = generateOTP();
 
   await ForgotRepo.saveOTP(user._id, String(otp));
 
-  // 📧 TODO: integrate nodemailer
-  console.log(`OTP for ${email} is ${otp}`);
+  // ✅ SEND EMAIL
+  await sendOTPEmail({
+    to: email,
+    otp,
+  });
 };
 
-
 /**
- * RESET PASSWORD USING OTP
+ * RESET PASSWORD
  */
 export const resetPasswordService = async ({ email, otp, password }) => {
   const user = await ForgotRepo.findValidOTPUser(email, String(otp));
@@ -35,6 +37,5 @@ export const resetPasswordService = async ({ email, otp, password }) => {
     throw new ApiError(400, "Invalid or expired OTP");
   }
 
-  // 🔐 Update password & clear OTP atomically
   await ForgotRepo.updatePassword(user._id, password);
 };

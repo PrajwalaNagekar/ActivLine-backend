@@ -1,12 +1,18 @@
 import ApiError from "../../utils/ApiError.js";
-import Admin from "../../models/auth/auth.model.js";
+import * as LogoutRepo from "../../repositories/auth/logout.repository.js";
 
-export const logoutUser = async (userId) => {
-  const user = await Admin.findById(userId);
-  if (!user) throw new ApiError(404, "User not found");
+export const logoutService = async ({ userId, fcmToken }) => {
+  const user = await LogoutRepo.findUserById(userId);
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
 
-  user.refreshToken = null;
-  await user.save();
+  // 🔥 Case 1: FCM token provided → remove only that
+  if (fcmToken) {
+    await LogoutRepo.removeFCMToken(userId, fcmToken);
+    return;
+  }
 
-  return true;
+  // 🔥 Case 2: Normal logout → remove refresh token + FCM
+  await LogoutRepo.clearSession(userId);
 };

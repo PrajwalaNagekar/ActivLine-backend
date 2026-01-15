@@ -1,5 +1,5 @@
 import ApiError from "../../utils/ApiError.js";
-import * as AdminRepo from "../../repositories/auth/admin.profile.repository.js";
+import * as AdminRepo from "../../repositories/auth/auth.profile.repository.js";
 
 export const createUser = async (payload) => {
   const exists = await AdminRepo.findByEmail(payload.email);
