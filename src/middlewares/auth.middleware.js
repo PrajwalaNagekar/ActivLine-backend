@@ -1,8 +1,10 @@
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 import { asyncHandler } from "../utils/AsyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import Admin from "../models/auth/auth.model.js";
 // import Customer from "../models/Customer/user.model.js";
+import StaffStatus from "../models/staff/Staff.model.js";
 
 
 /**
@@ -96,7 +98,7 @@ export const adminAuth = asyncHandler(async (req, _res, next) => {
     throw new ApiError(401, "Unauthorized");
   }
 
-  if (req.user.role !== "Admin") {
+  if (req.user.role !== "ADMIN") {
     throw new ApiError(403, "Admin access only");
   }
 
@@ -104,8 +106,53 @@ export const adminAuth = asyncHandler(async (req, _res, next) => {
 });
 
 export const isSuperAdmin = asyncHandler((req, _, next) => {
-    if (req.user.role !== "Admin") {
+    if (req.user.role !== "ADMIN") {
         throw new ApiError(403, "Forbidden: Super Admin only");
     }
     next();
 });
+
+export const canManageAdminStaff = asyncHandler(async (req, _, next) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    throw new ApiError(400, "Invalid Staff ID");
+  }
+
+  const staff = await Admin.findById(req.params.id);
+
+  if (!staff) {
+    throw new ApiError(404, "Admin staff not found");
+  }
+
+  // ✅ ADMIN → full access (Check this FIRST so they can manage terminated staff)
+  if (req.user.role === "ADMIN") {
+    return next();
+  }
+
+  const staffStatus = await StaffStatus.findOne({ staffId: staff._id });
+  // ❌ TERMINATED staff cannot be managed
+  if (staffStatus && staffStatus.status === "TERMINATED") {
+    throw new ApiError(403, "Cannot manage terminated admin staff");
+  }
+
+  // ❌ ADMIN_STAFF cannot manage other admin staff
+  if (req.user.role === "ADMIN_STAFF") {
+    // allow only self-update (optional)
+    if (req.user._id.toString() === staff._id.toString()) {
+      return next();
+    }
+    throw new ApiError(403, "Admin staff cannot manage other admin staff");
+  }
+
+  throw new ApiError(403, "You are not allowed to perform this action");
+});
+
+export const blockTerminatedStaff = async (req, _, next) => {
+  if (req.user?.role === "ADMIN_STAFF") {
+    const status = await StaffStatus.findOne({ staffId: req.user._id });
+
+    if (status?.status === "TERMINATED") {
+      throw new ApiError(403, "Account terminated");
+    }
+  }
+  next();
+};

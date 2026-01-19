@@ -5,6 +5,7 @@ import userRoutes from "./user/index.route.js";
 import chatRoutes from "./chat/chat.index.js";
 import adminIndex from "./admin/index.js";
 import customerIndex from "./customer/index.js";
+import staffIndex from "./staff/index.js"; // ✅ ADD THIS
 const router = Router();
 
 router.use("/auth", authRoutes);   // 🔐 LOGIN HERE
@@ -13,6 +14,7 @@ router.use("/users", userRoutes);
 router.use("/chat", chatRoutes);
 router.use("/admin", adminIndex);
 router.use("/customer", customerIndex);
+router.use("/staff", staffIndex); 
 // future:
 // router.use("/staff", staffRoutes);
 
