@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import { asyncHandler } from "../utils/AsyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import Admin from "../models/auth/auth.model.js";
-// import Customer from "../models/customer.model.js";
+// import Customer from "../models/Customer/user.model.js";
 
 
 /**
@@ -12,10 +12,10 @@ export const verifyJWT = asyncHandler(async (req, _res, next) => {
   let token;
 
   // 1️⃣ Extract token (cookie OR header)
-  if (req.cookies?.accessToken) {
-    token = req.cookies.accessToken;
-  } else if (req.headers.authorization?.startsWith("Bearer ")) {
+  if (req.headers.authorization?.startsWith("Bearer ")) {
     token = req.headers.authorization.slice(7);
+  } else if (req.cookies?.accessToken) {
+    token = req.cookies.accessToken;
   }
 
   // 2️⃣ No token
@@ -32,11 +32,12 @@ export const verifyJWT = asyncHandler(async (req, _res, next) => {
   }
 
   // 3️⃣ Backward-compatible user attach
-  req.user = {
-    _id: decoded._id || decoded.id,
-    role: decoded.role || decoded.type || "User",
-    email: decoded.email || null,
-  };
+ req.user = {
+  _id: decoded._id || decoded.id,
+  role: (decoded.role || decoded.type || "CUSTOMER").toUpperCase(),
+  email: decoded.email || null,
+};
+
 
   // 4️⃣ Safety check (won't break old tokens)
   if (!req.user._id) {

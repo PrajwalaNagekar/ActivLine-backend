@@ -8,35 +8,69 @@ import cookieParser from "cookie-parser";
 dotenv.config();
 const app = express();
 
-// CORS
 app.use(
-    cors({
-        origin: (origin, callback) => {
-            const allowedOrigins = process.env.CORS_ORIGIN?.split(",").map((o) =>
-                o.trim()
-            ) || [
-                    "http://localhost:3000",
-                    "http://localhost:5173",
-                    "http://localhost:5174",
+  cors({
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:64255",
+         "http://localhost:8000"
+      ];
 
-                ];
-            if (!origin || allowedOrigins.includes(origin)) {
-                callback(null, true);
-            } else {
-                callback(new Error("Not allowed by CORS"));
-            }
-        },
-        credentials: true,
-    })
+      // 1. Allow requests with no origin (like mobile apps, Postman, or curl)
+      if (!origin || origin === "null") {
+        return callback(null, true);
+      }
+
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.startsWith("http://localhost") ||
+        origin.startsWith("http://127.0.0.1")
+      ) {
+        return callback(null, true);
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
 );
 
+
+
+
+
+// app.options("/*", cors({
+//   origin: (origin, callback) => {
+//     const allowedOrigins = [
+//       "http://localhost:3000",
+//       "http://localhost:5173",
+//       "http://localhost:5174",
+//       "http://127.0.0.1:64255",
+//     ];
+
+//     if (!origin || allowedOrigins.includes(origin)) {
+//       callback(null, true);
+//     } else {
+//       callback(new Error("Not allowed by CORS"));
+//     }
+//   },
+//   credentials: true,
+// }));
+
+// ✅ preflight support
+// app.options("*", cors());
 
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(cookieParser());
 
-// Routes
 app.use("/api", routes);
+
 // Test Route
 app.get("/test", (req, res) => {
 
@@ -50,6 +84,8 @@ app.get("/test", (req, res) => {
 
 // Basic Error Handler
 app.use((err, req, res, next) => {
+    console.error("❌ Server Error:", err);
+
     // Handle multer file size errors
     if (err.code === "LIMIT_FILE_SIZE") {
         return res.status(413).json({

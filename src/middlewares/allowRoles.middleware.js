@@ -1,4 +1,4 @@
-// src/middlewares/role.middleware.js
+// src/middlewares/allowRoles.middleware.js
 import ApiError from "../utils/ApiError.js";
 
 export const allowRoles = (...roles) => {
@@ -7,7 +7,7 @@ export const allowRoles = (...roles) => {
       throw new ApiError(401, "Unauthorized");
     }
 
-    const userRole = String(req.user.role).toUpperCase();
+    const userRole = req.user.role.toUpperCase();
     const allowedRoles = roles.map(r => r.toUpperCase());
 
     console.log("USER ROLE:", userRole);

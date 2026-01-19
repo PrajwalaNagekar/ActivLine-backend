@@ -26,6 +26,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       lowercase: true,
       trim: true,
+      default: null,
     },
 
     password: {
@@ -34,9 +35,10 @@ const userSchema = new mongoose.Schema(
       minlength: 6,
     },
 
-    biometricEnabled: {
-      type: Boolean,
-      default: false,
+    role: {
+      type: String,
+      enum: ["CUSTOMER"],
+      default: "CUSTOMER",
     },
 
     isActive: {
@@ -44,28 +46,32 @@ const userSchema = new mongoose.Schema(
       default: true,
     },
 
-    // 🔐 OTP for Forgot Password
+    fcmToken: {
+      type: String,
+      default: null,
+    },
+
+    // 🔐 Password reset / OTP
     otp: {
       code: String,
       expiresAt: Date,
     },
 
-    // 🔑 Secure reset token
     passwordResetToken: String,
     passwordResetExpires: Date,
   },
   { timestamps: true }
 );
 
-// 🔐 Password Hash
+// 🔐 Hash password
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
   this.password = await bcrypt.hash(this.password, 10);
 });
 
-// 🔍 Compare Password
+// 🔍 Compare password
 userSchema.methods.comparePassword = function (password) {
   return bcrypt.compare(password, this.password);
 };
 
-export default mongoose.models.User || mongoose.model("User", userSchema);
+export default mongoose.models.Customer || mongoose.model("Customer", userSchema);

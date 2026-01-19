@@ -1,4 +1,4 @@
-import activlineClient from "../../../config/Jaze_API/Ticket/activline.config.js";
+import { fetchAllTickets } from "../../../external/activline/activline.ticket.api.js";
 import ApiError from "../../../utils/ApiError.js";
 
 export const getAdminTicketsService = async ({ page, perPage }) => {
@@ -9,18 +9,8 @@ export const getAdminTicketsService = async ({ page, perPage }) => {
   formData.append("perPage", String(perPage));
 
   try {
-    const response = await activlineClient.post(
-      "/get_all_tickets",
-      formData.toString()
-    );
-
-    return response.data;
+    return await fetchAllTickets(formData.toString());
   } catch (err) {
-    console.error("❌ Activline error:", err.response?.data);
-
-    throw new ApiError(
-      err.response?.status || 500,
-      "External ticket service failed"
-    );
+    throw new ApiError(502, "External ticket service failed");
   }
 };

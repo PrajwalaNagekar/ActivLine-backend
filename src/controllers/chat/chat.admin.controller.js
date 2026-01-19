@@ -1,0 +1,41 @@
+// src/controllers/chat/chat.admin.controller.js
+import * as ChatService from "../../services/chat/chat.service.js";
+import * as ChatRoomRepo from "../../repositories/chat/chatRoom.repository.js";
+import ApiResponse from "../../utils/ApiReponse.js";
+import { asyncHandler } from "../../utils/AsyncHandler.js";
+import { assignStaffSchema } from "../../validations/chat/chat.validation.js";
+export const assignStaff = asyncHandler(async (req, res) => {
+  const { error } = assignStaffSchema.validate(req.body);
+  if (error) throw error;
+
+  const room = await ChatService.assignStaffToRoom(
+    req.body.roomId,
+    req.body.staffId
+  );
+
+  res.json(ApiResponse.success(room, "Staff assigned successfully"));
+});
+
+export const getAllRooms = asyncHandler(async (req, res) => {
+  const rooms = await ChatService.getAllRooms(req.query);
+  res.json(ApiResponse.success(rooms, "Chat rooms fetched successfully"));
+});
+
+
+
+export const getRoomMessages = asyncHandler(async (req, res) => {
+  const { roomId } = req.params;
+
+  const room = await ChatRoomRepo.findById(roomId);
+  if (!room) {
+    return res.status(404).json(
+      ApiResponse.error("Room not found")
+    );
+  }
+
+  const messages = await ChatService.getMessagesByRoom(roomId);
+
+  res.json(
+    ApiResponse.success(messages, "Chat messages fetched successfully")
+  );
+});
