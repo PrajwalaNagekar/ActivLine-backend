@@ -4,18 +4,17 @@ import { logoutService } from "../../services/auth/logout.service.js";
 import { validateLogout } from "../../validations/auth/logout.validator.js";
 
 export const logout = asyncHandler(async (req, res) => {
-  // validate body
   validateLogout(req.body || {});
 
   const { fcmToken } = req.body || {};
 
-  // only own user (from JWT)
   await logoutService({
-    userId: req.user._id,
+    user: req.user,   // 🔥 PASS FULL USER
     fcmToken,
   });
 
-  res.status(200).json(
+  return res.status(200).json(
     ApiResponse.success(null, "Logout successful")
   );
 });
+

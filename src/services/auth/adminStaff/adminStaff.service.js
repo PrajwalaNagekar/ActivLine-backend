@@ -8,13 +8,13 @@ export const createAdminStaff = async (payload) => {
     throw new ApiError(409, "User with email already exists");
   }
 
-  const staff = await AdminRepo.createAuth({
+  const user = await AdminRepo.createAuth({
     name: payload.name,
     email: payload.email,
     password: payload.password,
 
-    // 🔒 FORCE ROLE
-    role: "ADMIN_STAFF",
+    // ✅ ROLE FROM PAYLOAD
+    role: payload.role,
 
     phone: payload.phone || null,
     fcmToken: payload.fcmToken || null,
@@ -22,16 +22,17 @@ export const createAdminStaff = async (payload) => {
   });
 
   await StaffStatus.create({
-    staffId: staff._id,
+    staffId: user._id,
     status: "ACTIVE",
   });
 
   return {
-    id: staff._id,
-    name: staff.name,
-    email: staff.email,
-    role: staff.role,
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
     status: "ACTIVE",
-    createdAt: staff.createdAt,
+    createdAt: user.createdAt,
   };
 };
+

@@ -7,8 +7,14 @@ export const validateCreateAdminStaff = (data) => {
   if (!email) throw new ApiError(400, "Email is required");
   if (!password) throw new ApiError(400, "Password is required");
 
-  // 🔒 STRICT ROLE CHECK
-  if (role && role !== "ADMIN_STAFF") {
-    throw new ApiError(403, "Only ADMIN_STAFF can be created here");
+  // 🔒 ALLOWED ROLES ONLY
+  const ALLOWED_ROLES = ["ADMIN", "ADMIN_STAFF"];
+
+  if (!role || !ALLOWED_ROLES.includes(role)) {
+    throw new ApiError(
+      403,
+      "Role must be ADMIN or ADMIN_STAFF"
+    );
   }
 };
+

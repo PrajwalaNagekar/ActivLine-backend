@@ -10,7 +10,7 @@ const staffStatusSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["ACTIVE", "DISABLED", "TERMINATED"],
+      enum: ["ACTIVE", "DISABLED", "TERMINATED", "INACTIVE"],
       default: "ACTIVE",
     },
   },

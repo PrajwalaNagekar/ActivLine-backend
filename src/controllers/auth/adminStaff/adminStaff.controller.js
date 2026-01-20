@@ -6,12 +6,18 @@ import * as AuthService from "../../../services/auth/adminStaff/adminStaff.servi
 export const createAdminStaff = asyncHandler(async (req, res) => {
   validateCreateAdminStaff(req.body);
 
+  // 🔐 Only ADMIN can create users
+  if (req.user.role !== "ADMIN") {
+    throw new ApiError(403, "Only ADMIN can create users");
+  }
+
   const staff = await AuthService.createAdminStaff({
-    ...req.body,
-    createdBy: req.user._id, // admin id
+    ...req.body,           // role comes from payload
+    createdBy: req.user._id,
   });
 
   return res.status(201).json(
-    ApiResponse.success(staff, "Admin staff created successfully")
+    ApiResponse.success(staff, `${staff.role} created successfully`)
   );
 });
+

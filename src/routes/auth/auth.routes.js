@@ -1,5 +1,7 @@
+
 import { Router } from "express";
 import { login } from "../../controllers/auth/login.controller.js";
+import { logout } from "../../controllers/auth/logout.controller.js";
 import { createUser } from "../../controllers/auth/auth.controller.js";
 import { createAdminStaff } from "../../controllers/auth/adminStaff/adminStaff.controller.js";
 import { verifyJWT, adminAuth } from "../../middlewares/auth.middleware.js";
@@ -13,4 +15,6 @@ router.post(
   adminAuth,
   createAdminStaff
 );
+
+router.post("/logout", verifyJWT, logout);
 export default router;
