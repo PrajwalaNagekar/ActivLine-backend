@@ -3,7 +3,7 @@ import * as ChatService from "../../services/chat/chat.service.js";
 import * as ChatRoomRepo from "../../repositories/chat/chatRoom.repository.js";
 import ApiResponse from "../../utils/ApiReponse.js";
 import { asyncHandler } from "../../utils/AsyncHandler.js";
-import { assignStaffSchema } from "../../validations/chat/chat.validation.js";
+import { assignStaffSchema,updateTicketStatusSchema } from "../../validations/chat/chat.validation.js";
 export const assignStaff = asyncHandler(async (req, res) => {
   const { error } = assignStaffSchema.validate(req.body);
   if (error) throw error;
@@ -17,9 +17,15 @@ export const assignStaff = asyncHandler(async (req, res) => {
 });
 
 export const getAllRooms = asyncHandler(async (req, res) => {
-  const rooms = await ChatService.getAllRooms(req.query);
-  res.json(ApiResponse.success(rooms, "Chat rooms fetched successfully"));
+  const { status } = req.query;
+
+  const rooms = await ChatService.getAllRooms({ status });
+
+  res.json(
+    ApiResponse.success(rooms, "Chat rooms fetched successfully")
+  );
 });
+
 
 
 
@@ -37,5 +43,24 @@ export const getRoomMessages = asyncHandler(async (req, res) => {
 
   res.json(
     ApiResponse.success(messages, "Chat messages fetched successfully")
+  );
+});
+
+
+export const updateTicketStatus = asyncHandler(async (req, res) => {
+  const { error } = updateTicketStatusSchema.validate(req.body);
+  if (error) throw error;
+
+  const updatedRoom = await ChatService.updateTicketStatus(
+    req.body.roomId,
+    req.body.status,
+    req.user.role
+  );
+
+  res.json(
+    ApiResponse.success(
+      updatedRoom,
+      `Ticket status updated to ${req.body.status}`
+    )
   );
 });

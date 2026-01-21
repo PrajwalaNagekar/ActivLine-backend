@@ -2,10 +2,12 @@
 import ChatRoom from "../../models/chat/chatRoom.model.js";
 
 
-export const getAll = () =>
-  ChatRoom.find()
-    .populate("customer assignedStaff")
+export const getAll = (filter = {}) =>
+  ChatRoom.find(filter)
+    .populate("customer", "fullName email mobile")
+    .populate("assignedStaff", "name email")
     .sort({ updatedAt: -1 });
+
 
 export const createRoom = (data) => ChatRoom.create(data);
 
@@ -27,3 +29,9 @@ export const findByAssignedStaff = (staffId) =>
     .sort({ updatedAt: -1 });
 
     
+    export const updateStatus = (roomId, status) =>
+  ChatRoom.findByIdAndUpdate(
+    roomId,
+    { status },
+    { new: true }
+  ).populate("customer assignedStaff");

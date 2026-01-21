@@ -7,3 +7,4 @@ export const getAllStaff = async () => {
 export const getAdminStaffList = async () => {
   return AdminRepo.getAllStaff();
 };
+

@@ -20,11 +20,12 @@ const chatRoomSchema = new mongoose.Schema(
       ref: "Admin",
     },
 
-    status: {
-      type: String,
-      enum: ["OPEN", "ASSIGNED", "CLOSED"],
-      default: "OPEN",
-    },
+   status: {
+  type: String,
+  enum: ["OPEN", "ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"],
+  default: "OPEN",
+},
+
   },
   { timestamps: true }
 );

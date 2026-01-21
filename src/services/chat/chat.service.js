@@ -9,9 +9,19 @@ import ApiError from "../../utils/ApiError.js";
  * ADMIN → FETCH ALL ROOMS
  * ===============================
  */
-export const getAllRooms = async () => {
-  return ChatRoomRepo.getAll();
+
+
+export const getAllRooms = async ({ status }) => {
+  const filter = {};
+
+  // ✅ Apply filter ONLY when valid
+  if (status && ["OPEN", "ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"].includes(status)) {
+    filter.status = status;
+  }
+
+  return ChatRoomRepo.getAll(filter);
 };
+
 
 /**
  * ===============================
@@ -121,4 +131,37 @@ export const getRoomsForStaff = async (staffId) => {
 };
 export const getAssignedRoomsForStaff = async (staffId) => {
   return ChatRoomRepo.getAssignedRoomsForStaff(staffId);
+};
+
+export const updateTicketStatus = async (roomId, newStatus, userRole) => {
+  const room = await ChatRoomRepo.findById(roomId);
+  if (!room) throw new ApiError(404, "Ticket not found");
+
+  const currentStatus = room.status;
+
+  // 🔐 STATUS TRANSITION RULES
+  const allowedTransitions = {
+    OPEN: ["IN_PROGRESS", "RESOLVED","CLOSED","OPEN"],
+    ASSIGNED: ["IN_PROGRESS", "RESOLVED","CLOSED","OPEN"],
+    IN_PROGRESS: ["RESOLVED","CLOSED","IN_PROGRESS"],
+    RESOLVED: ["CLOSED", "OPEN","IN_PROGRESS","RESOLVED"], // reopen allowed
+    CLOSED: ["CLOSED"],
+  };
+
+  if (!allowedTransitions[currentStatus].includes(newStatus)) {
+    throw new ApiError(
+      400,
+      `Invalid status change from ${currentStatus} to ${newStatus}`
+    );
+  }
+
+  // 🔐 RBAC
+  if (
+    ["IN_PROGRESS", "RESOLVED", "CLOSED"].includes(newStatus) &&
+    !["ADMIN", "ADMIN_STAFF"].includes(userRole)
+  ) {
+    throw new ApiError(403, "You are not allowed to update ticket status");
+  }
+
+  return ChatRoomRepo.updateStatus(roomId, newStatus);
 };
