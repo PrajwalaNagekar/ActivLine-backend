@@ -22,5 +22,10 @@ router.patch(
   allowRoles("ADMIN", "ADMIN_STAFF"),
   updateTicketStatus
 );
-router.get("/messages/:roomId", getRoomMessages);
+router.get(
+  "/messages/:roomId",
+  verifyJWT,
+  allowRoles("ADMIN", "ADMIN_STAFF"),
+  getRoomMessages
+);
 export default router;
