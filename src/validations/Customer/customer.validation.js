@@ -1,24 +1,33 @@
 import Joi from "joi";
 
 export const createCustomerSchema = Joi.object({
-  fullName: Joi.string().min(3).required(),
+  userGroupId: Joi.number().required(),
 
-  mobile: Joi.string()
+  accountId: Joi.string().required(),
+
+  userName: Joi.string().min(3).required(),
+
+  password: Joi.string().min(6).optional(),
+
+  phoneNumber: Joi.string()
     .pattern(/^[6-9]\d{9}$/)
     .required(),
 
-  email: Joi.string().email().optional(),
+  emailId: Joi.string().email().optional(),
 
-  password: Joi.string().min(6).required(),
+  userState: Joi.string().optional(),
+  userType: Joi.string().valid("home", "business").optional(),
 
-  // ✅ role added safely
-  role: Joi.string()
-    .valid("CUSTOMER")
-    .optional()
-    .default("CUSTOMER"),
-});
+  activationDate: Joi.string().optional(),
 
-export const loginCustomerSchema = Joi.object({
-  identifier: Joi.string().required(), // email OR mobile
-  password: Joi.string().required(),
+  firstName: Joi.string().optional(),
+  lastName: Joi.string().optional(),
+
+  address_line1: Joi.string().optional(),
+  address_city: Joi.string().optional(),
+  address_pin: Joi.string().optional(),
+  address_state: Joi.string().optional(),
+  address_country: Joi.string().length(2).optional(),
+
+  notifyUserSms: Joi.string().valid("on", "off").optional(),
 });

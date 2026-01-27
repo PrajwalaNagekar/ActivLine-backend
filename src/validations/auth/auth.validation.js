@@ -22,16 +22,14 @@ export const validateCreateUser = (data) => {
   if (!email) throw new ApiError(400, "Email is required");
   if (!password) throw new ApiError(400, "Password is required");
 
-  // 🚫 BLOCK STAFF / FRANCHISE / ANYTHING ELSE
-  if (role && role !== "ADMIN") {
-    throw new ApiError(
-      403,
-      "You are not allowed to create this role"
-    );
+  // 🔒 Allow only ADMIN by default
+  if (role && role !== "ADMIN" && role !== "SUPER_ADMIN") {
+    throw new ApiError(403, "Invalid role");
   }
 
   if (fcmToken && typeof fcmToken !== "string") {
     throw new ApiError(400, "Invalid FCM token");
   }
 };
+
 

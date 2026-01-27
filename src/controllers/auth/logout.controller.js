@@ -9,12 +9,19 @@ export const logout = asyncHandler(async (req, res) => {
   const { fcmToken } = req.body || {};
 
   await logoutService({
-    user: req.user,   // 🔥 PASS FULL USER
+    userId: req.user._id,
     fcmToken,
   });
 
-  return res.status(200).json(
-    ApiResponse.success(null, "Logout successful")
-  );
-});
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+  };
 
+  return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(ApiResponse.success(null, "Logout successful"));
+});

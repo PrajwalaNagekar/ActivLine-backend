@@ -10,7 +10,6 @@ const activlineClient = axios.create({
   timeout: activlineConfig.timeout,
   headers: {
     Authorization: `Basic ${basicAuth}`,
-    "Content-Type": "application/x-www-form-urlencoded",
   },
 });
 

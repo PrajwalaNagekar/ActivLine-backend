@@ -7,11 +7,12 @@ const adminSchema = new mongoose.Schema({
   email: { type: String, unique: true },
   // phone: { type: String, unique: true, sparse: true },
   password: { type: String, required: true },
-  role: {
-    type: String,
-    enum: ["ADMIN", "FRANCHISE", "ADMIN_STAFF"],
-    default: "ADMIN",
-  },
+ role: {
+  type: String,
+  enum: ["SUPER_ADMIN", "ADMIN", "FRANCHISE", "ADMIN_STAFF"],
+  default: "ADMIN",
+},
+
    fcmToken: {
       type: String,
       default: null, // 🔥 future-ready

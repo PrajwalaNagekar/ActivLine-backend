@@ -18,9 +18,9 @@ router.use(verifyJWT);
 
 // Dashboard routes have their own role checks defined in dashboard.routes.js
 router.use("/dashboard", dashboardIndex);
-
-router.use(allowRoles("ADMIN")); 
-router.use("/settings", settingsIndex); // Protect other admin routes
+router.use("/settings", settingsIndex); 
+router.use(allowRoles("ADMIN", "SUPER_ADMIN"));
+// Protect other admin routes
 router.use("/", adminTicketRoutes);
 router.use("/", adminRoutes);         // /dashboard
 

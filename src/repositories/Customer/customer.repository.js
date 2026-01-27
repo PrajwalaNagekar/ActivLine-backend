@@ -1,17 +1,33 @@
-import User from "../../models/Customer/user.model.js";
+import Customer from "../../models/Customer/customer.model.js";
 
-export const findByMobile = (mobile) => {
-  return User.findOne({ mobile });
+export const findByMobile = (phoneNumber) => {
+  return Customer.findOne({ phoneNumber });
 };
 
 export const findByIdentifier = (identifier) => {
-  return User.findOne({
+  return Customer.findOne({
     $or: [
-      { mobile: identifier },
-      { email: identifier.toLowerCase() },
+      { phoneNumber: identifier },
+      { emailId: identifier.toLowerCase() },
     ],
   });
 };
 
-export const createCustomer = (data) =>
-  User.create(data);
+export const createCustomerRepo = async (data) => {
+  const customer = await Customer.create(data);
+  return customer;
+};
+export const updateCustomerRepo = async (activlineUserId, updateData) => {
+  return Customer.findOneAndUpdate(
+    { activlineUserId },
+    { $set: updateData },
+    { new: true, runValidators: true }
+  );
+};
+
+
+
+
+export const findCustomerByActivlineId = async (activlineUserId) => {
+  return Customer.findOne({ activlineUserId }).lean();
+};

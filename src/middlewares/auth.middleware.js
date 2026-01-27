@@ -5,7 +5,7 @@ import { ApiError } from "../utils/ApiError.js";
 import Admin from "../models/auth/auth.model.js";
 // import Customer from "../models/Customer/user.model.js";
 import StaffStatus from "../models/staff/Staff.model.js";
-
+import { ROLES } from "../constants/roles.js";
 
 /**
  * 🔐 Verify JWT (NON-BREAKING, PRODUCTION SAFE)
@@ -98,18 +98,25 @@ export const adminAuth = asyncHandler(async (req, _res, next) => {
     throw new ApiError(401, "Unauthorized");
   }
 
-  if (req.user.role !== "ADMIN") {
+  if (!["ADMIN", "SUPER_ADMIN"].includes(req.user.role)) {
     throw new ApiError(403, "Admin access only");
   }
 
   next();
 });
 
+
 export const isSuperAdmin = asyncHandler((req, _, next) => {
-    if (req.user.role !== "ADMIN") {
-        throw new ApiError(403, "Forbidden: Super Admin only");
-    }
-    next();
+  if (!req.user || !req.user.role) {
+    throw new ApiError(401, "Unauthorized");
+  }
+
+  // ✅ Explicit Super Admin check (future safe)
+  if (req.user.role !== "SUPER_ADMIN") {
+    throw new ApiError(403, "Forbidden: Super Admin only");
+  }
+
+  next();
 });
 
 export const canManageAdminStaff = asyncHandler(async (req, _, next) => {
@@ -155,4 +162,34 @@ export const blockTerminatedStaff = async (req, _, next) => {
     }
   }
   next();
+};
+
+
+export const verifyAccessToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({
+      success: false,
+      message: "Access token missing",
+    });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.ACCESS_TOKEN_SECRET
+    );
+
+    // attach user to request
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired access token",
+    });
+  }
 };
