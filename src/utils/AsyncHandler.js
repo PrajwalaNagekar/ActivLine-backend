@@ -4,7 +4,10 @@ const asyncHandler = (requestHandler) => {
         try {
             await requestHandler(req, res, next);
         } catch (error) {
-            console.error('❌ Error in asyncHandler:', error); // Optional logging for debugging
+            // Only log server errors (500+) or errors without status code
+            if (!error.statusCode || error.statusCode >= 500) {
+                console.error('❌ Error in asyncHandler:', error);
+            }
             next(error); // Pass error to global error handler
         }
     };

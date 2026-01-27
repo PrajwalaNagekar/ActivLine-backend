@@ -4,7 +4,9 @@ import adminRoutes from "./admin.routes.js";
 // import adminAuthRoutes from "./auth.routes.js";
 import { verifyJWT } from "../../middlewares/auth.middleware.js";
 import { allowRoles } from "../../middlewares/role.middleware.js";
-
+import adminTicketRoutes from "./Ticket/adminTicket.routes.js";
+import dashboardIndex from "./Dashboard/index.js";
+import settingsIndex from "./settings/index.js";
 const router = Router();
 
 /* ===== PUBLIC (NO JWT) ===== */
@@ -13,7 +15,13 @@ const router = Router();
 
 /* ===== PROTECTED ===== */
 router.use(verifyJWT);
-router.use(allowRoles("ADMIN"));
+
+// Dashboard routes have their own role checks defined in dashboard.routes.js
+router.use("/dashboard", dashboardIndex);
+router.use("/settings", settingsIndex); 
+router.use(allowRoles("ADMIN", "SUPER_ADMIN"));
+// Protect other admin routes
+router.use("/", adminTicketRoutes);
 router.use("/", adminRoutes);         // /dashboard
 
 export default router;

@@ -7,17 +7,20 @@ const adminSchema = new mongoose.Schema({
   email: { type: String, unique: true },
   // phone: { type: String, unique: true, sparse: true },
   password: { type: String, required: true },
-  role: {
-    type: String,
-    enum: ["ADMIN", "FRANCHISE", "ADMIN_STAFF"],
-    default: "ADMIN",
-  },
+ role: {
+  type: String,
+  enum: ["SUPER_ADMIN", "ADMIN", "FRANCHISE", "ADMIN_STAFF"],
+  default: "ADMIN",
+},
+
    fcmToken: {
       type: String,
       default: null, // 🔥 future-ready
     },
     
   refreshToken: { type: String, default: null },
+  resetOTP: { type: String, default: null },
+  resetOTPExpiry: { type: Date, default: null },
 }, { timestamps: true });
 
 adminSchema.pre("save", async function () {
@@ -31,7 +34,8 @@ adminSchema.methods.comparePassword = function (password) {
 
 adminSchema.methods.generateAccessToken = function () {
   return jwt.sign(
-    { _id: this._id, role: this.role },
+    { _id: this._id, role: this.role, email: this.email },
+
     process.env.ACCESS_TOKEN_SECRET,
     { expiresIn: "7d" }
   );
@@ -45,4 +49,4 @@ adminSchema.methods.generateRefreshToken = function () {
   );
 };
 
-export default mongoose.model("Admin", adminSchema);
+export default mongoose.models.Admin || mongoose.model("Admin", adminSchema);
