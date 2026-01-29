@@ -3,6 +3,7 @@ import * as ChatService from "../../services/chat/chat.service.js";
 import * as ChatRoomRepo from "../../repositories/chat/chatRoom.repository.js";
 import ApiResponse from "../../utils/ApiReponse.js";
 import { asyncHandler } from "../../utils/AsyncHandler.js";
+import { createActivityLog } from "../../services/ActivityLog/activityLog.service.js";
 import { assignStaffSchema,updateTicketStatusSchema } from "../../validations/chat/chat.validation.js";
 export const assignStaff = asyncHandler(async (req, res) => {
   const { error } = assignStaffSchema.validate(req.body);
@@ -12,7 +13,16 @@ export const assignStaff = asyncHandler(async (req, res) => {
     req.body.roomId,
     req.body.staffId
   );
-
+ await createActivityLog({
+    req,
+    action: "UPDATE",
+    module: "CHAT",
+    description: "Admin assigned staff to chat room",
+    targetId: room._id,
+    metadata: {
+      staffId: req.body.staffId,
+    },
+  });
   res.json(ApiResponse.success(room, "Staff assigned successfully"));
 });
 
@@ -51,11 +61,14 @@ export const updateTicketStatus = asyncHandler(async (req, res) => {
   const { error } = updateTicketStatusSchema.validate(req.body);
   if (error) throw error;
 
-  const updatedRoom = await ChatService.updateTicketStatus(
-    req.body.roomId,
-    req.body.status,
-    req.user.role
-  );
+  const updatedRoom = await ChatService.updateTicketStatus(req, req.body.roomId, req.body.status);
+await createActivityLog({
+  req,
+  action: "UPDATE",
+  module: "TICKET",
+  description: `Ticket status changed to ${req.body.status}`,
+  targetId: updatedRoom._id,
+});
 
   res.json(
     ApiResponse.success(

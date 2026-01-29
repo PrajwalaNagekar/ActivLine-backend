@@ -6,7 +6,8 @@ import chatRoutes from "./chat/chat.index.js";
 import adminIndex from "./admin/index.js";
 import customerIndex from "./customer/index.js";
 import staffIndex from "./staff/index.js";
-import dashboardRoutes from "./admin/Dashboard/dashboard.routes.js"; // ✅ ADD THIS
+import dashboardRoutes from "./admin/Dashboard/dashboard.routes.js"; 
+import logsIndex from "./ActivityLog/index.js";// ✅ ADD THIS
 const router = Router();
 
 router.use("/auth", authRoutes);   // 🔐 LOGIN HERE
@@ -17,6 +18,7 @@ router.use("/admin", adminIndex);
 router.use("/customer", customerIndex);
 router.use("/staff", staffIndex); 
 router.use("/dashboard", dashboardRoutes);
+router.use("/logs", logsIndex); 
 // future:
 // router.use("/staff", staffRoutes);
 

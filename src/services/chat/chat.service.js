@@ -2,6 +2,7 @@
 
 import * as ChatRoomRepo from "../../repositories/chat/chatRoom.repository.js";
 import * as ChatMsgRepo from "../../repositories/chat/chatMessage.repository.js";
+import { createActivityLog } from "../ActivityLog/activityLog.service.js";
 import ApiError from "../../utils/ApiError.js";
 
 /**
@@ -28,13 +29,22 @@ export const getAllRooms = async ({ status }) => {
  * CUSTOMER → OPEN CHAT
  * ===============================
  */
-export const openChatIfNotExists = async (customerId) => {
+export const openChatIfNotExists = async (req) => {
+  const customerId = req.user._id;
   let room = await ChatRoomRepo.findByCustomer(customerId);
 
   if (!room) {
     room = await ChatRoomRepo.createRoom({
       customer: customerId,
       status: "OPEN",
+    });
+
+    await createActivityLog({
+      req,
+      action: "CREATE",
+      module: "TICKET",
+      description: "Customer created a support ticket",
+      targetId: room._id,
     });
   }
 
@@ -133,10 +143,11 @@ export const getAssignedRoomsForStaff = async (staffId) => {
   return ChatRoomRepo.getAssignedRoomsForStaff(staffId);
 };
 
-export const updateTicketStatus = async (roomId, newStatus, userRole) => {
+export const updateTicketStatus = async (req, roomId, newStatus) => {
   const room = await ChatRoomRepo.findById(roomId);
   if (!room) throw new ApiError(404, "Ticket not found");
 
+  const userRole = req.user.role;
   const currentStatus = room.status;
 
   // 🔐 STATUS TRANSITION RULES
@@ -163,5 +174,15 @@ export const updateTicketStatus = async (roomId, newStatus, userRole) => {
     throw new ApiError(403, "You are not allowed to update ticket status");
   }
 
-  return ChatRoomRepo.updateStatus(roomId, newStatus);
+  const updatedRoom = await ChatRoomRepo.updateStatus(roomId, newStatus);
+
+  await createActivityLog({
+    req,
+    action: "UPDATE",
+    module: "TICKET",
+    description: `Updated ticket status to ${newStatus}`,
+    targetId: updatedRoom._id,
+  });
+
+  return updatedRoom;
 };
