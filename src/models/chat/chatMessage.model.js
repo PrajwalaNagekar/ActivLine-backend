@@ -123,6 +123,11 @@ const chatMessageSchema = new mongoose.Schema(
 
     attachments: [attachmentSchema], // ✅ IMPORTANT
 
+    tempId: {
+      type: String,
+      default: null,
+    },
+
     isRead: {
       type: Boolean,
       default: false,
