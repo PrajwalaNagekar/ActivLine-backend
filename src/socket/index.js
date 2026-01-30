@@ -50,6 +50,7 @@ export const initSocket = (server) => {
     try {
       const token = socket.handshake.auth?.token;
       if (!token) {
+        console.error(`❌ Socket Connection Rejected: No token provided (ID: ${socket.id})`);
         return next(new Error("Socket auth token missing"));
       }
 
@@ -66,6 +67,7 @@ export const initSocket = (server) => {
 
       next();
     } catch (err) {
+      console.error(`❌ Socket Connection Rejected: Invalid token (ID: ${socket.id}) - ${err.message}`);
       return next(new Error("Invalid socket token"));
     }
   });
@@ -91,55 +93,31 @@ export const initSocket = (server) => {
     /* ===============================
        💬 SEND MESSAGE (ADMIN/CUSTOMER)
        =============================== */
-    socket.on("send-message", async (data) => {
-      try {
-        // 🛡️ STRICT PAYLOAD VALIDATION
-        if (
-          typeof data !== "object" ||
-          !data.roomId ||
-          typeof data.message !== "string" ||
-          !data.message.trim()
-        ) {
-          console.warn("⚠️ Invalid socket payload:", data);
-          return;
-        }
+   socket.on("send-message", async (data) => {
+  const { roomId, message = "", attachments = [] } = data;
 
-        const { roomId, message } = data;
+  if (!roomId) return;
+  if (!message.trim() && attachments.length === 0) return;
 
-        // 🔐 ALWAYS TRUST JWT — NEVER CLIENT
-        const senderId = socket.user._id;
-        const senderRole = socket.user.role;
+  const msg = await ChatMessage.create({
+    roomId,
+    senderId: socket.user._id,
+    senderRole: socket.user.role,
+    senderModel: socket.user.role === "CUSTOMER" ? "Customer" : "Admin",
+    message,
+    messageType: attachments.length
+      ? attachments.some(a => a.type === "image") ? "IMAGE" : "FILE"
+      : "TEXT",
+    attachments,
+  });
 
-        // 🔒 PERMISSION CHECK
-        await canUserSendMessage({
-          roomId,
-          senderId,
-          senderRole,
-        });
+  const populated = await ChatMessage
+    .findById(msg._id)
+    .populate("senderId", "fullName role");
 
-        const senderModel = senderRole === "CUSTOMER" ? "Customer" : "Admin";
+  io.to(roomId).emit("new-message", populated);
+});
 
-        // 💾 SAVE TO DB
-        const savedMessage = await ChatMessage.create({
-          roomId,
-          senderId,
-          senderRole,
-          message,
-          senderModel,
-        });
-
-const populatedMessage = await ChatMessage
-  .findById(savedMessage._id)
-  .populate("senderId", "fullName email role");
-
-io.to(roomId).emit("new-message", populatedMessage);
-
-
-      } catch (err) {
-        console.error("❌ MESSAGE SAVE FAILED:", err.message);
-        socket.emit("error-message", { message: err.message });
-      }
-    });
 
     socket.on("disconnect", () => {
       console.log("🔴 Socket disconnected:", socket.id);

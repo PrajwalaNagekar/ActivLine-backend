@@ -8,8 +8,8 @@ import ApiError from "../../../utils/ApiError.js";
 export const createAdminStaff = asyncHandler(async (req, res) => {
   validateCreateAdminStaff(req.body);
 
-  // 🔐 Only ADMIN can create users
-  if (req.user.role !== "ADMIN") {
+  // 🔐 Only ADMIN or SUPER_ADMIN can create users
+  if (!["ADMIN", "SUPER_ADMIN"].includes(req.user.role)) {
     throw new ApiError(403, "Only ADMIN can create users");
   }
 

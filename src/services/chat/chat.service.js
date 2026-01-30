@@ -109,7 +109,7 @@ export const canUserSendMessage = async ({
   }
 
   // ✅ Admin always allowed (NO assignedStaff check)
-  if (senderRole === "ADMIN") {
+  if (senderRole === "ADMIN" || senderRole === "SUPER_ADMIN") {
     return room;
   }
 
@@ -169,7 +169,7 @@ export const updateTicketStatus = async (req, roomId, newStatus) => {
   // 🔐 RBAC
   if (
     ["IN_PROGRESS", "RESOLVED", "CLOSED"].includes(newStatus) &&
-    !["ADMIN", "ADMIN_STAFF"].includes(userRole)
+    !["ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"].includes(userRole)
   ) {
     throw new ApiError(403, "You are not allowed to update ticket status");
   }
