@@ -1,9 +1,11 @@
 // import { createCustomerSchema } from "../../validations/Customer/customer.validation.js";
 
 import ApiResponse from "../../utils/ApiReponse.js";
+import Customer from "../../models/Customer/user.model.js";
+import jwt from "jsonwebtoken";
 // import { loginCustomerSchema } from "../../validations/Customer/customer.validation.js";
 import { createCustomerService ,updateCustomerService} from "../../services/Customer/customer.service.js";
-import { loginCustomerService,getMyProfileService } from "../../services/Customer/customer.service.js";
+import { getMyProfileService } from "../../services/Customer/customer.service.js";
 
 
 export const createCustomer = async (req, res, next) => {
@@ -57,26 +59,55 @@ export const updateCustomer = async (req, res, next) => {
 
 export const loginCustomer = async (req, res, next) => {
   try {
-    const { username, password, deviceId, deviceInfo } = req.body;
+    const { mobile, password } = req.body;
 
-    if (!username || !password) {
+    if (!mobile || !password) {
       return res.status(400).json({
         success: false,
-        message: "username and password are required",
+        message: "Mobile and password are required",
       });
     }
 
-    const data = await loginCustomerService({
-      username,
-      password,
-      deviceId,
-      deviceInfo,
-    });
+    const user = await Customer.findOne({ mobile });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User does not exist",
+      });
+    }
+
+    const isPasswordValid = await user.comparePassword(password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid user credentials",
+      });
+    }
+
+    const accessToken = jwt.sign(
+      { _id: user._id, email: user.email, role: user.role },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "1d" }
+    );
+
+    const refreshToken = jwt.sign(
+      { _id: user._id },
+      process.env.REFRESH_TOKEN_SECRET || "refresh-secret",
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "10d" }
+    );
+
+    const loggedInUser = await Customer.findById(user._id).select("-password");
 
     res.status(200).json({
       success: true,
       message: "Login successful",
-      data,
+      data: {
+        user: loggedInUser,
+        accessToken,
+        refreshToken,
+      },
     });
   } catch (err) {
     next(err);

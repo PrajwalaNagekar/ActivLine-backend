@@ -1,7 +1,11 @@
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
+
+import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
 import ChatMessage from "../models/chat/chatMessage.model.js";
 import { canUserSendMessage } from "../services/chat/chat.service.js";
+// import fs from "fs";
+// import path from "path";
 
 let io;
 
@@ -22,33 +26,36 @@ export const initSocket = (server) => {
     );
   }
 
-  io = new Server(server, {
-    cors: {
-      origin: (origin, callback) => {
-        if (!origin || origin === "null") return callback(null, true);
-
-        if (
-          allowedOrigins.includes(origin) ||
-          origin.startsWith("http://localhost") ||
-          origin.startsWith("http://127.0.0.1")
-        ) {
-          return callback(null, true);
-        }
-
-        return callback(new Error("Not allowed by Socket.IO CORS"));
-      },
-      methods: ["GET", "POST"],
-      credentials: true,
+io = new Server(server, {
+  cors: {
+    origin: (origin, callback) => {
+      if (!origin || origin === "null") return callback(null, true);
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.startsWith("http://localhost") ||
+        origin.startsWith("http://127.0.0.1")
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by Socket.IO CORS"));
     },
-    transports: ["websocket"], // ⛔ NO polling (important)
-  });
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+  transports: ["websocket"],
+  maxHttpBufferSize: 20 * 1024 * 1024, // 🔥 20MB REQUIRED
+});
 
   /* ===============================
      🔐 SOCKET JWT AUTH (MANDATORY)
      =============================== */
   io.use((socket, next) => {
     try {
-      const token = socket.handshake.auth?.token;
+      let token =
+        socket.handshake.auth?.token ||
+        socket.handshake.headers?.authorization?.replace("Bearer ", "") ||
+        socket.handshake.query?.token;
+
       if (!token) {
         console.error(`❌ Socket Connection Rejected: No token provided (ID: ${socket.id})`);
         return next(new Error("Socket auth token missing"));
@@ -93,30 +100,62 @@ export const initSocket = (server) => {
     /* ===============================
        💬 SEND MESSAGE (ADMIN/CUSTOMER)
        =============================== */
-   socket.on("send-message", async (data) => {
-  const { roomId, message = "", attachments = [] } = data;
 
-  if (!roomId) return;
-  if (!message.trim() && attachments.length === 0) return;
 
-  const msg = await ChatMessage.create({
-    roomId,
-    senderId: socket.user._id,
-    senderRole: socket.user.role,
-    senderModel: socket.user.role === "CUSTOMER" ? "Customer" : "Admin",
-    message,
-    messageType: attachments.length
-      ? attachments.some(a => a.type === "image") ? "IMAGE" : "FILE"
-      : "TEXT",
-    attachments,
-  });
 
-  const populated = await ChatMessage
-    .findById(msg._id)
-    .populate("senderId", "fullName role");
+socket.on("send-message", async ({ roomId, message = "", attachments = [] }) => {
+  try {
+    if (!roomId) return;
+    if (!message.trim() && attachments.length === 0) return;
 
-  io.to(roomId).emit("new-message", populated);
+    const uploadedAttachments = [];
+
+    for (const file of attachments) {
+      if (!file.buffer || file.buffer.length === 0) {
+        throw new Error("Received empty file buffer");
+      }
+
+      const uploaded = await uploadToCloudinary({
+  buffer: Buffer.from(file.buffer),          // ← remove Uint8Array wrapper
+  mimetype: file.type || "application/pdf",  // ← fallback is good
+  originalname: file.name,
 });
+
+      uploadedAttachments.push({
+        name: file.name,
+        url: uploaded.secure_url,
+        size: uploaded.bytes,
+        mimeType: file.type,
+        extension: file.name.split(".").pop().toLowerCase(),
+        type: file.type.startsWith("image") ? "image" : "file",
+      });
+    }
+
+    const msg = await ChatMessage.create({
+      roomId,
+      senderId: socket.user._id,
+      senderRole: socket.user.role,
+      senderModel: socket.user.role === "CUSTOMER" ? "Customer" : "Admin",
+      message,
+      messageType: uploadedAttachments.length
+        ? uploadedAttachments.some(f => f.type === "image")
+          ? "IMAGE"
+          : "FILE"
+        : "TEXT",
+      attachments: uploadedAttachments,
+    });
+
+    io.to(roomId).emit("new-message", msg);
+
+  } catch (err) {
+    console.error("❌ Socket Send Message Error:", err);
+    socket.emit("send-error", { message: err.message });
+  }
+});
+
+
+
+
 
 
     socket.on("disconnect", () => {

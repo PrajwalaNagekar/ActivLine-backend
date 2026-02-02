@@ -1,6 +1,6 @@
 import { asyncHandler } from "../../utils/AsyncHandler.js";
 import ApiResponse from "../../utils/ApiReponse.js";
-import { upload } from "../../utils/multerConfig.js";
+import { chatUpload } from "../../middlewares/upload.middleware.js";
 import { uploadToCloudinary } from "../../utils/cloudinaryUpload.js";
 import ChatMessage from "../../models/chat/chatMessage.model.js";
 import { getIO } from "../../socket/index.js";
@@ -8,7 +8,7 @@ import { getIO } from "../../socket/index.js";
 export const uploadChatFiles = asyncHandler(async (req, res) => {
   // 1️⃣ Handle Multipart Upload (Promisified)
   await new Promise((resolve, reject) => {
-    upload.array("files", 5)(req, res, (err) => {
+    chatUpload.array("files", 5)(req, res, (err) => {
       if (err) return reject(err);
       resolve();
     });
@@ -30,7 +30,7 @@ export const uploadChatFiles = asyncHandler(async (req, res) => {
         attachments.push({
           url: uploaded.secure_url,
           name: file.originalname,
-          size: file.size,
+          size: uploaded.bytes, // ✅ Use actual stored size from Cloudinary
 
           // 🔑 IMPORTANT
           mimeType: file.mimetype, // application/pdf

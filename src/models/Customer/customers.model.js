@@ -1,14 +1,8 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
-const userSchema = new mongoose.Schema(
+const customerSchema = new mongoose.Schema(
   {
-    customerId: {
-      type: String,
-      unique: true,
-      index: true,
-    },
-
     fullName: {
       type: String,
       required: true,
@@ -46,33 +40,19 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-
-    fcmToken: {
-      type: String,
-      default: null,
-    },
-
-    // 🔐 Password reset / OTP
-    otp: {
-      code: String,
-      expiresAt: Date,
-    },
-
-    passwordResetToken: String,
-    passwordResetExpires: Date,
   },
   { timestamps: true }
 );
 
 // 🔐 Hash password
-userSchema.pre("save", async function () {
+customerSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
   this.password = await bcrypt.hash(this.password, 10);
 });
 
 // 🔍 Compare password
-userSchema.methods.comparePassword = function (password) {
+customerSchema.methods.comparePassword = function (password) {
   return bcrypt.compare(password, this.password);
 };
 
-export default mongoose.models.Customer || mongoose.model("Customer", userSchema);
+export default mongoose.model("Customer", customerSchema);
