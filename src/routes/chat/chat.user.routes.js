@@ -5,6 +5,6 @@ import { verifyJWT } from "../../middlewares/auth.middleware.js";
 const router = Router();
 
 router.post("/open", verifyJWT, openChat);
-router.get("/messages/:roomId",  getMyMessages);
+router.get("/messages/:roomId", verifyJWT, getMyMessages);
 
 export default router;

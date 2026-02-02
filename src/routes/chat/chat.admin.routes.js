@@ -25,7 +25,7 @@ router.patch(
 router.get(
   "/messages/:roomId",
   verifyJWT,
-  allowRoles("ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"),
+  allowRoles("ADMIN", "SUPER_ADMIN", "ADMIN_STAFF", "CUSTOMER"),
   getRoomMessages
 );
 export default router;
