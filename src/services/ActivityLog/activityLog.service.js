@@ -1,4 +1,7 @@
 import * as Repo from "../../repositories/ActivityLog/activityLog.repository.js";
+import Admin from "../../models/auth/auth.model.js";
+import Customer from "../../models/Customer/customer.model.js";
+import Staff from "../../models/staff/Staff.model.js";
 
 export const createActivityLog = async ({
   req,
@@ -9,17 +12,42 @@ export const createActivityLog = async ({
   targetId = null,
   metadata = {},
 }) => {
-  // Prioritize explicitly passed user object (for login), fallback to req.user
-  const actor = user || req?.user;
-  if (!actor) {
-    console.warn("Activity log skipped: No actor (user) found.");
-    return;
+  const actorRef = user || req?.user;
+  if (!actorRef) return;
+
+  let actor = null;
+  let actorModelName = null;
+
+  // 🔹 fetch full user based on role
+  switch (actorRef.role) {
+    case "ADMIN":
+    case "SUPER_ADMIN":
+      actor = await Admin.findById(actorRef._id).lean();
+      actorModelName = "Admin";
+      break;
+
+    case "STAFF":
+    case "ADMIN_STAFF":
+      actor = await Staff.findById(actorRef._id).lean();
+      actorModelName = "Staff";
+      break;
+
+    case "CUSTOMER":
+      actor = await Customer.findById(actorRef._id).lean();
+      actorModelName = "Customer";
+      break;
+
+    default:
+      return;
   }
 
+  if (!actor) return;
+
   await Repo.createLog({
-    actorId: actor.id || actor._id, // Handle both user.id and user._id
-    actorRole: actor.role,
-    actorName: actor.name,
+    actorId: actor._id,
+    actorModel: actorModelName,
+    actorRole: actorRef.role,
+    actorName: actor.name || actor.fullName,
     action,
     module,
     description,

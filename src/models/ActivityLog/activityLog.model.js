@@ -6,6 +6,12 @@ const activityLogSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       index: true,
+      refPath: "actorModel",
+    },
+    actorModel: {
+      type: String,
+      required: true,
+      enum: ["SUPER_ADMIN","Admin", "ADMIN_STAFF", "Customer", "Staff"],
     },
     actorRole: {
       type: String,

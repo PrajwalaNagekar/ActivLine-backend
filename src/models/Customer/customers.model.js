@@ -55,4 +55,7 @@ customerSchema.methods.comparePassword = function (password) {
   return bcrypt.compare(password, this.password);
 };
 
-export default mongoose.model("Customer", customerSchema);
+const Customer =
+  mongoose.models.Customer || mongoose.model("Customer", customerSchema);
+
+export default Customer;
