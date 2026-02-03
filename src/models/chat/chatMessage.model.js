@@ -110,6 +110,11 @@ const chatMessageSchema = new mongoose.Schema(
       required: true,
     },
 
+     statusAtThatTime: {
+  type: String,
+  enum: ["OPEN", "ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"],
+  required: true,
+},
     messageType: {
       type: String,
       enum: ["TEXT", "IMAGE", "FILE"],
@@ -132,6 +137,8 @@ const chatMessageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+   
+
   },
   { timestamps: true }
 );

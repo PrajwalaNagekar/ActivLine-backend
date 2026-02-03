@@ -1,5 +1,6 @@
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
+import ChatRoom from "../models/chat/chatRoom.model.js";
 
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
 import ChatMessage from "../models/chat/chatMessage.model.js";
@@ -108,6 +109,9 @@ socket.on("send-message", async ({ roomId, message = "", attachments = [] }) => 
     if (!roomId) return;
     if (!message.trim() && attachments.length === 0) return;
 
+    const room = await ChatRoom.findById(roomId).select("status");
+    if (!room) throw new Error("Chat room not found");
+
     const uploadedAttachments = [];
 
     for (const file of attachments) {
@@ -137,12 +141,14 @@ socket.on("send-message", async ({ roomId, message = "", attachments = [] }) => 
       senderRole: socket.user.role,
       senderModel: socket.user.role === "CUSTOMER" ? "Customer" : "Admin",
       message,
+      statusAtThatTime: room.status,
       messageType: uploadedAttachments.length
         ? uploadedAttachments.some(f => f.type === "image")
           ? "IMAGE"
           : "FILE"
         : "TEXT",
       attachments: uploadedAttachments,
+      statusAtThatTime: room.status,
     });
 
     io.to(roomId).emit("new-message", msg);
@@ -151,6 +157,17 @@ socket.on("send-message", async ({ roomId, message = "", attachments = [] }) => 
     console.error("❌ Socket Send Message Error:", err);
     socket.emit("send-error", { message: err.message });
   }
+  await ChatRoom.findByIdAndUpdate(roomId, {
+  lastMessage: message
+    ? message
+    : attachments.length > 0
+      ? attachments[0].type === "image"
+        ? "📷 Image"
+        : "📎 File"
+      : "",
+  lastMessageAt: new Date(),
+});
+
 });
 
 

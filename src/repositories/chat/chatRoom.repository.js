@@ -35,3 +35,5 @@ export const findByAssignedStaff = (staffId) =>
     { status },
     { new: true }
   ).populate("customer assignedStaff");
+export const updateRoomLastMessage = (roomId, data) =>
+  ChatRoom.findByIdAndUpdate(roomId, data, { new: true });

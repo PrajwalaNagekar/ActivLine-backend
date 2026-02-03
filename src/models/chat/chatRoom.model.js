@@ -25,6 +25,15 @@ const chatRoomSchema = new mongoose.Schema(
   enum: ["OPEN", "ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"],
   default: "OPEN",
 },
+lastMessage: {
+  type: String,
+  default: "",
+},
+
+lastMessageAt: {
+  type: Date,
+  default: null,
+},
 
   },
   { timestamps: true }

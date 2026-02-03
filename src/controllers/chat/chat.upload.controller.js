@@ -4,6 +4,7 @@ import { chatUpload } from "../../middlewares/upload.middleware.js";
 import { uploadToCloudinary } from "../../utils/cloudinaryUpload.js";
 import ChatMessage from "../../models/chat/chatMessage.model.js";
 import { getIO } from "../../socket/index.js";
+import ChatRoom from "../../models/chat/chatRoom.model.js";
 
 export const uploadChatFiles = asyncHandler(async (req, res) => {
   // 1️⃣ Handle Multipart Upload (Promisified)
@@ -19,6 +20,11 @@ export const uploadChatFiles = asyncHandler(async (req, res) => {
 
   if (!roomId) {
     return res.status(400).json(ApiResponse.error("Room ID is required"));
+  }
+
+  const room = await ChatRoom.findById(roomId);
+  if (!room) {
+    return res.status(404).json(ApiResponse.error("Chat room not found"));
   }
 
   const attachments = [];
@@ -72,6 +78,7 @@ export const uploadChatFiles = asyncHandler(async (req, res) => {
 
     // 🔥 ADD THIS LINE (VERY IMPORTANT)
     tempId: req.body.tempId || null,
+    statusAtThatTime: room.status,
   });
 
   const populated = await ChatMessage.findById(message._id).populate(

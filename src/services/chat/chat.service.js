@@ -31,6 +31,7 @@ export const getAllRooms = async ({ status }) => {
  */
 export const openChatIfNotExists = async (req) => {
   const customerId = req.user._id;
+  const { message } = req.body;
   let room = await ChatRoomRepo.findByCustomer(customerId);
 
   if (!room) {
@@ -45,6 +46,23 @@ export const openChatIfNotExists = async (req) => {
       module: "TICKET",
       description: "Customer created a support ticket",
       targetId: room._id,
+    });
+  }
+
+  if (message && message.trim()) {
+    await ChatMsgRepo.saveMessage({
+      roomId: room._id,
+      senderId: customerId,
+      senderModel: "Customer",
+      senderRole: "CUSTOMER",
+      message: message.trim(),
+      messageType: "TEXT",
+      statusAtThatTime: room.status,
+    });
+
+    room = await ChatRoomRepo.updateRoomLastMessage(room._id, {
+      lastMessage: message.trim(),
+      lastMessageAt: new Date(),
     });
   }
 
@@ -175,6 +193,15 @@ export const updateTicketStatus = async (req, roomId, newStatus) => {
   }
 
   const updatedRoom = await ChatRoomRepo.updateStatus(roomId, newStatus);
+await ChatMsgRepo.saveMessage({
+  roomId: roomId,
+  senderId: req.user._id,
+  senderModel: "Admin",
+  senderRole: req.user.role,
+  message: `Status changed to ${newStatus}`,
+  messageType: "TEXT",
+  statusAtThatTime: newStatus,
+});
 
   await createActivityLog({
     req,
