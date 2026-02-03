@@ -203,13 +203,13 @@ await ChatMsgRepo.saveMessage({
   statusAtThatTime: newStatus,
 });
 
-  await createActivityLog({
-    req,
-    action: "UPDATE",
-    module: "TICKET",
-    description: `Updated ticket status to ${newStatus}`,
-    targetId: updatedRoom._id,
-  });
+  // await createActivityLog({
+  //   req,
+  //   action: "UPDATE",
+  //   module: "TICKET",
+  //   description: `Updated ticket status to ${newStatus}`,
+  //   targetId: updatedRoom._id,
+  // });
 
   return updatedRoom;
 };
