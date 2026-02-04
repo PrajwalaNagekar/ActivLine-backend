@@ -5,11 +5,12 @@ const basicAuth = Buffer
   .from(`${activlineConfig.username}:${activlineConfig.password}`)
   .toString("base64");
 
-const activlineClient = axios.create({
+  const activlineClient = axios.create({
   baseURL: activlineConfig.baseURL,
   timeout: activlineConfig.timeout,
   headers: {
     Authorization: `Basic ${basicAuth}`,
+    "Content-Type": "application/json",
   },
 });
 

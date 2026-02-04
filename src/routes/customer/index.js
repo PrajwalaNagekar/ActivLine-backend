@@ -1,8 +1,9 @@
 import { Router } from "express";
-import customerRoutes from "./customers.routes.js";
+import leadRoutes from "./lead.routes.js";
 
 const router = Router();
 
-router.use("/", customerRoutes);
+// /api/customer/lead
+router.use("/lead", leadRoutes);
 
 export default router;
