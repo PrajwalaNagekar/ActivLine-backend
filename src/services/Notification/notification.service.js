@@ -11,5 +11,5 @@ export const notifyAdminsOnLeadCreate = async (leadData) => {
 };
 
 export const getNotificationsForRole = async (role) => {
-  return getNotificationsByRoleRepo(role);
+  return getNotificationsByRoleRepo(role.toUpperCase());
 };
