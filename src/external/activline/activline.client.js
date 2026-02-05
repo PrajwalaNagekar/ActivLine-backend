@@ -14,4 +14,15 @@ const basicAuth = Buffer
   },
 });
 
+activlineClient.interceptors.response.use(
+  (response) => response.data,
+  (error) => {
+    const message =
+      error?.response?.data?.message ||
+      error?.message ||
+      "Activline API error";
+    throw new Error(message);
+  }
+);
+
 export default activlineClient;

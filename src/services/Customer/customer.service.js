@@ -94,7 +94,6 @@ export const getMessagesByRoom = async (roomId) => {
 
 
 export const createCustomerService = async (payload, files) => {
-  // 🔹 1. Build form-data for Activline
   const formData = new FormData();
 
   Object.entries(payload).forEach(([key, value]) => {
@@ -114,30 +113,28 @@ export const createCustomerService = async (payload, files) => {
     );
   }
 
-  // 🔹 2. Call Activline API
-  const activlineRes = await activlineClient.post(
+  // ✅ FIXED CALL
+  const activlineData = await activlineClient.post(
     "/add_user",
     formData,
     { headers: formData.getHeaders() }
   );
 
-  const activlineData = activlineRes.data;
-console.log("🔥 Activline response:", activlineData);
-  // 🔹 3. Save FULL customer in MongoDB
+  if (activlineData?.status !== "success") {
+    throw new ApiError(502, activlineData?.message || "Failed to create user in Activline");
+  }
+
   const savedCustomer = await createCustomerRepo({
     userGroupId: payload.userGroupId,
     accountId: payload.accountId,
     userName: payload.userName,
     phoneNumber: payload.phoneNumber,
     emailId: payload.emailId,
-
     userState: payload.userState,
     userType: payload.userType,
     activationDate: payload.activationDate,
-
     firstName: payload.firstName,
     lastName: payload.lastName,
-
     address: {
       line1: payload.address_line1,
       city: payload.address_city,
@@ -145,19 +142,14 @@ console.log("🔥 Activline response:", activlineData);
       state: payload.address_state,
       country: payload.address_country,
     },
-
     activlineUserId: activlineData?.message?.userId?.toString(),
-
     documents: {
       idFile: files?.idFile?.[0]?.filename,
       addressFile: files?.addressFile?.[0]?.filename,
     },
-
     rawPayload: payload,
   });
 
-
-  // 🔥 RETURN FULL MODEL
   return savedCustomer;
 };
 
@@ -464,4 +456,3 @@ export const getMyProfileService = async (activlineUserId) => {
 
   return customer; // 🔥 return FULL document
 };
-
