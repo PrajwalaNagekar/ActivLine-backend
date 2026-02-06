@@ -59,9 +59,10 @@ export const editActivlineUserProfile = async (payload) => {
     formData.append("customExpirationDate", payload.customExpirationDate);
 
   // Send request
-  return await activlineClient.post("/add_user", formData, {
+  const response = await activlineClient.post("/add_user", formData, {
     headers: formData.getHeaders(),
   });
+  return response.data;
 };
 
 
@@ -75,7 +76,8 @@ export const updateUserInActivline = async (payload) => {
     }
   });
 
-  return await activlineFormClient.post("/add_user", formData, {
+  const response = await activlineFormClient.post("/add_user", formData, {
     headers: formData.getHeaders()
   });
+  return response.data;
 };

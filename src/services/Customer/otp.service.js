@@ -6,36 +6,45 @@ import { generateOTP } from "../../utils/otp.util.js";
 export const generateOtp = async ({ userId, type, newValue, sendTo }) => {
   const otp = generateOTP();
 
-  // 🔥 STEP 1: Invalidate ALL previous OTPs for this user + type
+  // 🔥 Invalidate old OTPs
   await OtpVerification.updateMany(
     { userId, type, verified: false },
     { $set: { verified: true } }
   );
 
-  // 🔥 STEP 2: Create new OTP
+  // 🔐 Save OTP
   await OtpVerification.create({
     userId,
     type,
     newValue,
     otp,
-    expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 min
-    verified: false,
+    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
   });
 
-  // 🔥 STEP 3: Send OTP
-  if (type === "email" || type === "password" || type === "mobile") {
-    await sendOTPEmail({
-      to: sendTo,
-      otp,
-      purpose:
-        type === "email"
-          ? "Email Change Verification"
-          : type === "password"
-          ? "Password Change Verification"
-          : "Mobile Number Change Verification",
-    });
+  // 📧 Send OTP to OLD EMAIL (if exists)
+  if (sendTo?.email) {
+    try {
+      await sendOTPEmail({
+        to: sendTo.email,
+        otp,
+        purpose: "Profile Update Verification",
+      });
+    } catch (error) {
+      console.error("⚠️ Failed to send OTP Email:", error.message);
+    }
+  }
+
+  // 📱 Send OTP to OLD MOBILE (if exists)
+  if (sendTo?.phone) {
+    try {
+      const message = `Your OTP for profile update is ${otp}. Valid for 5 minutes.`;
+      await sendSMS(sendTo.phone, message);
+    } catch (error) {
+      console.error("⚠️ Failed to send OTP SMS:", error.message);
+    }
   }
 };
+
 
 
 
