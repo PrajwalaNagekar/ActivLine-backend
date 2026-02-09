@@ -32,23 +32,23 @@ export const getAllRooms = async ({ status }) => {
 export const openChatIfNotExists = async (req) => {
   const customerId = req.user._id;
   const { message } = req.body;
-  let room = await ChatRoomRepo.findByCustomer(customerId);
 
-  if (!room) {
-    room = await ChatRoomRepo.createRoom({
-      customer: customerId,
-      status: "OPEN",
-    });
+  // ✅ ALWAYS CREATE NEW ROOM (no reuse)
+  const room = await ChatRoomRepo.createRoom({
+    customer: customerId,
+    status: "OPEN",
+  });
 
-    await createActivityLog({
-      req,
-      action: "CREATE",
-      module: "TICKET",
-      description: "Customer created a support ticket",
-      targetId: room._id,
-    });
-  }
+  // ✅ ACTIVITY LOG
+  await createActivityLog({
+    req,
+    action: "CREATE",
+    module: "TICKET",
+    description: "Customer created a new support ticket",
+    targetId: room._id,
+  });
 
+  // ✅ SAVE FIRST MESSAGE (optional)
   if (message && message.trim()) {
     await ChatMsgRepo.saveMessage({
       roomId: room._id,
@@ -60,7 +60,7 @@ export const openChatIfNotExists = async (req) => {
       statusAtThatTime: room.status,
     });
 
-    room = await ChatRoomRepo.updateRoomLastMessage(room._id, {
+    await ChatRoomRepo.updateRoomLastMessage(room._id, {
       lastMessage: message.trim(),
       lastMessageAt: new Date(),
     });
@@ -68,6 +68,7 @@ export const openChatIfNotExists = async (req) => {
 
   return room;
 };
+
 
 /**
  * ===============================
@@ -212,4 +213,9 @@ await ChatMsgRepo.saveMessage({
   // });
 
   return updatedRoom;
+};
+
+
+export const getMyChatRooms = async (customerId) => {
+  return ChatRoomRepo.findRoomsByCustomer(customerId);
 };

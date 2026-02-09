@@ -193,3 +193,28 @@ export const verifyAccessToken = (req, res, next) => {
     });
   }
 };
+export const verifyCustomerJWT = asyncHandler(async (req, _, next) => {
+  let token =
+    req.cookies?.accessToken ||
+    req.headers.authorization?.replace("Bearer ", "");
+
+  if (!token) {
+    throw new ApiError(401, "Access token missing");
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.ACCESS_TOKEN_SECRET
+    );
+
+    req.user = {
+      _id: decoded._id,
+      role: "CUSTOMER",
+    };
+
+    next();
+  } catch (err) {
+    throw new ApiError(401, "ACCESS_TOKEN_EXPIRED");
+  }
+});

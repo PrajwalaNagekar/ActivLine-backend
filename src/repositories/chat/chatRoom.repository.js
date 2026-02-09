@@ -4,7 +4,7 @@ import ChatRoom from "../../models/chat/chatRoom.model.js";
 
 export const getAll = (filter = {}) =>
   ChatRoom.find(filter)
-    .populate("customer", "fullName email mobile")
+    .populate("customer", "fullName email mobile userName phoneNumber emailId")
     .populate("assignedStaff", "name email")
     .sort({ updatedAt: -1 });
 
@@ -37,3 +37,8 @@ export const findByAssignedStaff = (staffId) =>
   ).populate("customer assignedStaff");
 export const updateRoomLastMessage = (roomId, data) =>
   ChatRoom.findByIdAndUpdate(roomId, data, { new: true });
+
+export const findRoomsByCustomer = (customerId) =>
+  ChatRoom.find({ customer: customerId })
+    .populate("assignedStaff", "name email")
+    .sort({ updatedAt: -1 });

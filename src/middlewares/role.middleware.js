@@ -9,6 +9,12 @@ export const allowRoles = (...roles) => {
     }
 
     const userRole = String(req.user.role).toUpperCase();
+
+    // ✅ SUPER_ADMIN always has access (Global Bypass)
+    if (userRole === "SUPER_ADMIN") {
+      return next();
+    }
+
     const allowedRoles = roles.map(r => r.toUpperCase());
 
     console.log("USER ROLE:", userRole);

@@ -25,3 +25,13 @@ export const getMyMessages = asyncHandler(async (req, res) => {
     ApiResponse.success(messages, "Customer messages fetched")
   );
 });
+
+export const getMyChatRooms = asyncHandler(async (req, res) => {
+  const customerId = req.user._id;
+
+  const rooms = await ChatService.getMyChatRooms(customerId);
+
+  res.json(
+    ApiResponse.success(rooms, "Customer chat rooms fetched")
+  );
+});
