@@ -5,6 +5,11 @@ import { validate } from "../../middlewares/validate.middleware.js";
 import { createCustomerSchema } from "../../validations/Customer/customer.validation.js";
 import { loginCustomer } from "../../controllers/Customer/customer.controller.js";
 import { verifyAccessToken } from "../../middlewares/auth.middleware.js";
+import { verifyJWT } from "../../middlewares/auth.middleware.js";
+import { allowRoles } from "../../middlewares/role.middleware.js";
+import { updateCustomerReferralCode } from "../../controllers/Customer/customer.controller.js";
+import { getMyReferralCode } from "../../controllers/Customer/customer.controller.js";
+
 const router = express.Router();
 
 router.post(
@@ -30,4 +35,25 @@ router.post(
 router.post("/login", express.json(), upload.none(), loginCustomer);
 
 router.get("/me", verifyAccessToken, getMyProfile);
+
+router.patch(
+  "/customer/:customerId/referral",
+  verifyJWT,
+  allowRoles(
+    "SUPER_ADMIN",
+    "ADMIN",
+    "ADMIN_STAFF",
+    "SUPER_ADMIN_STAFF"
+  ),
+  updateCustomerReferralCode
+);
+
+
+router.get(
+  "/referral-code",
+  verifyJWT,
+  allowRoles("CUSTOMER"),
+  getMyReferralCode
+);
+
 export default router;

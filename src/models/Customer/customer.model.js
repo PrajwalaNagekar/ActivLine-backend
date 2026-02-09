@@ -63,6 +63,17 @@ const customerSchema = new mongoose.Schema(
       type: String,
       default: "ACTIVE",
     },
+    referral: {
+  code: {
+    type: String,
+  
+    index: true
+  },
+  referredCount: {
+    type: Number,
+    default: 0
+  }
+},
   },
   { timestamps: true }
 );

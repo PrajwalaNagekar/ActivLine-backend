@@ -9,6 +9,7 @@ import {
    findCustomerByActivlineId
 } from "../../repositories/Customer/customer.repository.js";
 
+import { generateReferralCode } from "../../utils/referralCode.js";
 import ApiError from "../../utils/ApiError.js";
 import FormData from "form-data";
 import fs from "fs";
@@ -93,6 +94,7 @@ export const getMessagesByRoom = async (roomId) => {
 
 
 
+
 export const createCustomerService = async (payload, files) => {
   const formData = new FormData();
 
@@ -113,7 +115,7 @@ export const createCustomerService = async (payload, files) => {
     );
   }
 
-  // ✅ FIXED CALL
+  // 🔹 1. Create user in Activline (UNCHANGED)
   const activlineData = await activlineClient.post(
     "/add_user",
     formData,
@@ -121,9 +123,28 @@ export const createCustomerService = async (payload, files) => {
   );
 
   if (activlineData?.status !== "success") {
-    throw new ApiError(502, activlineData?.message || "Failed to create user in Activline");
+    throw new ApiError(
+      502,
+      activlineData?.message || "Failed to create user in Activline"
+    );
   }
 
+  // 🔹 2. Validate referral code if user used one
+  let referrer = null;
+  if (payload.referralCode) {
+    referrer = await Customer.findOne({
+      "referral.code": payload.referralCode
+    });
+
+    if (!referrer) {
+      throw new ApiError(400, "Invalid referral code");
+    }
+  }
+
+  // 🔹 3. Generate OWN referral code
+  const ownReferralCode = await generateReferralCode(payload.firstName);
+
+  // 🔹 4. Save customer
   const savedCustomer = await createCustomerRepo({
     userGroupId: payload.userGroupId,
     accountId: payload.accountId,
@@ -133,8 +154,10 @@ export const createCustomerService = async (payload, files) => {
     userState: payload.userState,
     userType: payload.userType,
     activationDate: payload.activationDate,
+
     firstName: payload.firstName,
     lastName: payload.lastName,
+
     address: {
       line1: payload.address_line1,
       city: payload.address_city,
@@ -142,16 +165,33 @@ export const createCustomerService = async (payload, files) => {
       state: payload.address_state,
       country: payload.address_country,
     },
+
     activlineUserId: activlineData?.message?.userId?.toString(),
+
     documents: {
       idFile: files?.idFile?.[0]?.filename,
       addressFile: files?.addressFile?.[0]?.filename,
     },
+
+    referral: {
+      code: ownReferralCode,
+      referredCount: 0
+    },
+
     rawPayload: payload,
   });
 
+  // 🔹 5. Increase referrer count AFTER customer creation
+  if (referrer) {
+    await Customer.updateOne(
+      { _id: referrer._id },
+      { $inc: { "referral.referredCount": 1 } }
+    );
+  }
+
   return savedCustomer;
 };
+
 
 // const buildCustomerUpdateData = (payload) => {
 //   const update = {};

@@ -8,6 +8,9 @@ import { createCustomerService ,updateCustomerService} from "../../services/Cust
 import { getMyProfileService } from "../../services/Customer/customer.service.js";
 
 
+// import Customer from "../../models/Customer/customer.model.js";
+import ApiError from "../../utils/ApiError.js";
+
 export const createCustomer = async (req, res, next) => {
   try {
     const customer = await createCustomerService(req.body, req.files);
@@ -126,6 +129,82 @@ export const getMyProfile = async (req, res, next) => {
       success: true,
       message: "Profile fetched successfully",
       data: profile,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateCustomerReferralCode = async (req, res) => {
+  const { customerId } = req.params;
+  const { referralCode } = req.body;
+
+  if (!referralCode) {
+    throw new ApiError(400, "Referral code is required");
+  }
+
+  // Check uniqueness
+  const exists = await Customer.findOne({
+    "referral.code": referralCode,
+    _id: { $ne: customerId }
+  });
+
+  if (exists) {
+    throw new ApiError(409, "Referral code already in use");
+  }
+
+  const customer = await Customer.findById(customerId);
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  customer.referral.code = referralCode;
+  await customer.save();
+
+  res.json({
+    success: true,
+    message: "Referral code updated successfully",
+    data: {
+      customerId,
+      referralCode
+    }
+  });
+};
+
+
+export const deleteCustomerReferralCode = async (req, res) => {
+  const { customerId } = req.params;
+
+  const customer = await Customer.findById(customerId);
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  customer.referral.code = null;
+  await customer.save();
+
+  res.json({
+    success: true,
+    message: "Referral code deleted"
+  });
+};
+
+
+export const getMyReferralCode = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    const customer = await Customer.findById(userId).select("referral");
+
+    if (!customer) {
+      throw new ApiError(404, "Customer not found");
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        referralCode: customer.referral?.code || null
+      }
     });
   } catch (err) {
     next(err);
