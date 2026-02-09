@@ -7,25 +7,25 @@ const router = Router();
 router.get(
   "/rooms",
   verifyJWT,
-  allowRoles("ADMIN"),
+  allowRoles("ADMIN", "SUPER_ADMIN"),
   getAllRooms
 );
 router.post(
   "/assign",
   verifyJWT,
-  allowRoles("ADMIN"),
+  allowRoles("ADMIN", "SUPER_ADMIN"),
   assignStaff
 );
 router.patch(
   "/status",
   verifyJWT,
-  allowRoles("ADMIN", "ADMIN_STAFF"),
+  allowRoles("ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"),
   updateTicketStatus
 );
 router.get(
   "/messages/:roomId",
   verifyJWT,
-  allowRoles("ADMIN", "ADMIN_STAFF"),
+  allowRoles("ADMIN", "SUPER_ADMIN", "ADMIN_STAFF", "CUSTOMER"),
   getRoomMessages
 );
 export default router;

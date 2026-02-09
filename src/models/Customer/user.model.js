@@ -19,6 +19,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      sparse: true, // ✅ Fix: Allow existing docs with missing mobile
       match: /^[6-9]\d{9}$/,
     },
 

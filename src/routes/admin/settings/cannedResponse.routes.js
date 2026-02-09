@@ -20,12 +20,14 @@ const router = Router();
 
 router.get(
   "/responses/:categoryId",
-  verifyJWT,
-  allowRoles(
-    ROLES.SUPER_ADMIN,
-    ROLES.ADMIN,
-    ROLES.ADMIN_STAFF
-  ),
+  // verifyJWT,
+  // allowRoles(
+  //   ROLES.SUPER_ADMIN,
+  //   ROLES.ADMIN,
+  //   ROLES.ADMIN_STAFF,
+  //   ROLES.CUSTOMER
+
+  // ),
   getAllCannedResponses
 );
 

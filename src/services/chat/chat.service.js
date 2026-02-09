@@ -2,6 +2,7 @@
 
 import * as ChatRoomRepo from "../../repositories/chat/chatRoom.repository.js";
 import * as ChatMsgRepo from "../../repositories/chat/chatMessage.repository.js";
+import { createActivityLog } from "../ActivityLog/activityLog.service.js";
 import ApiError from "../../utils/ApiError.js";
 
 /**
@@ -28,18 +29,46 @@ export const getAllRooms = async ({ status }) => {
  * CUSTOMER → OPEN CHAT
  * ===============================
  */
-export const openChatIfNotExists = async (customerId) => {
-  let room = await ChatRoomRepo.findByCustomer(customerId);
+export const openChatIfNotExists = async (req) => {
+  const customerId = req.user._id;
+  const { message } = req.body;
 
-  if (!room) {
-    room = await ChatRoomRepo.createRoom({
-      customer: customerId,
-      status: "OPEN",
+  // ✅ ALWAYS CREATE NEW ROOM (no reuse)
+  const room = await ChatRoomRepo.createRoom({
+    customer: customerId,
+    status: "OPEN",
+  });
+
+  // ✅ ACTIVITY LOG
+  await createActivityLog({
+    req,
+    action: "CREATE",
+    module: "TICKET",
+    description: "Customer created a new support ticket",
+    targetId: room._id,
+  });
+
+  // ✅ SAVE FIRST MESSAGE (optional)
+  if (message && message.trim()) {
+    await ChatMsgRepo.saveMessage({
+      roomId: room._id,
+      senderId: customerId,
+      senderModel: "Customer",
+      senderRole: "CUSTOMER",
+      message: message.trim(),
+      messageType: "TEXT",
+      statusAtThatTime: room.status,
+    });
+
+    await ChatRoomRepo.updateRoomLastMessage(room._id, {
+      lastMessage: message.trim(),
+      lastMessageAt: new Date(),
     });
   }
 
   return room;
 };
+
 
 /**
  * ===============================
@@ -99,7 +128,7 @@ export const canUserSendMessage = async ({
   }
 
   // ✅ Admin always allowed (NO assignedStaff check)
-  if (senderRole === "ADMIN") {
+  if (senderRole === "ADMIN" || senderRole === "SUPER_ADMIN") {
     return room;
   }
 
@@ -133,10 +162,11 @@ export const getAssignedRoomsForStaff = async (staffId) => {
   return ChatRoomRepo.getAssignedRoomsForStaff(staffId);
 };
 
-export const updateTicketStatus = async (roomId, newStatus, userRole) => {
+export const updateTicketStatus = async (req, roomId, newStatus) => {
   const room = await ChatRoomRepo.findById(roomId);
   if (!room) throw new ApiError(404, "Ticket not found");
 
+  const userRole = req.user.role;
   const currentStatus = room.status;
 
   // 🔐 STATUS TRANSITION RULES
@@ -158,10 +188,34 @@ export const updateTicketStatus = async (roomId, newStatus, userRole) => {
   // 🔐 RBAC
   if (
     ["IN_PROGRESS", "RESOLVED", "CLOSED"].includes(newStatus) &&
-    !["ADMIN", "ADMIN_STAFF"].includes(userRole)
+    !["ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"].includes(userRole)
   ) {
     throw new ApiError(403, "You are not allowed to update ticket status");
   }
 
-  return ChatRoomRepo.updateStatus(roomId, newStatus);
+  const updatedRoom = await ChatRoomRepo.updateStatus(roomId, newStatus);
+await ChatMsgRepo.saveMessage({
+  roomId: roomId,
+  senderId: req.user._id,
+  senderModel: "Admin",
+  senderRole: req.user.role,
+  message: `Status changed to ${newStatus}`,
+  messageType: "TEXT",
+  statusAtThatTime: newStatus,
+});
+
+  // await createActivityLog({
+  //   req,
+  //   action: "UPDATE",
+  //   module: "TICKET",
+  //   description: `Updated ticket status to ${newStatus}`,
+  //   targetId: updatedRoom._id,
+  // });
+
+  return updatedRoom;
+};
+
+
+export const getMyChatRooms = async (customerId) => {
+  return ChatRoomRepo.findRoomsByCustomer(customerId);
 };

@@ -9,6 +9,7 @@ import {
    findCustomerByActivlineId
 } from "../../repositories/Customer/customer.repository.js";
 
+import { generateReferralCode } from "../../utils/referralCode.js";
 import ApiError from "../../utils/ApiError.js";
 import FormData from "form-data";
 import fs from "fs";
@@ -93,8 +94,8 @@ export const getMessagesByRoom = async (roomId) => {
 
 
 
+
 export const createCustomerService = async (payload, files) => {
-  // 🔹 1. Build form-data for Activline
   const formData = new FormData();
 
   Object.entries(payload).forEach(([key, value]) => {
@@ -114,23 +115,42 @@ export const createCustomerService = async (payload, files) => {
     );
   }
 
-  // 🔹 2. Call Activline API
-  const activlineRes = await activlineClient.post(
+  // 🔹 1. Create user in Activline (UNCHANGED)
+  const activlineData = await activlineClient.post(
     "/add_user",
     formData,
     { headers: formData.getHeaders() }
   );
 
-  const activlineData = activlineRes.data;
-console.log("🔥 Activline response:", activlineData);
-  // 🔹 3. Save FULL customer in MongoDB
+  if (activlineData?.status !== "success") {
+    throw new ApiError(
+      502,
+      activlineData?.message || "Failed to create user in Activline"
+    );
+  }
+
+  // 🔹 2. Validate referral code if user used one
+  let referrer = null;
+  if (payload.referralCode) {
+    referrer = await Customer.findOne({
+      "referral.code": payload.referralCode
+    });
+
+    if (!referrer) {
+      throw new ApiError(400, "Invalid referral code");
+    }
+  }
+
+  // 🔹 3. Generate OWN referral code
+  const ownReferralCode = await generateReferralCode(payload.firstName);
+
+  // 🔹 4. Save customer
   const savedCustomer = await createCustomerRepo({
     userGroupId: payload.userGroupId,
     accountId: payload.accountId,
     userName: payload.userName,
     phoneNumber: payload.phoneNumber,
     emailId: payload.emailId,
-
     userState: payload.userState,
     userType: payload.userType,
     activationDate: payload.activationDate,
@@ -153,13 +173,25 @@ console.log("🔥 Activline response:", activlineData);
       addressFile: files?.addressFile?.[0]?.filename,
     },
 
+    referral: {
+      code: ownReferralCode,
+      referredCount: 0
+    },
+
     rawPayload: payload,
   });
 
+  // 🔹 5. Increase referrer count AFTER customer creation
+  if (referrer) {
+    await Customer.updateOne(
+      { _id: referrer._id },
+      { $inc: { "referral.referredCount": 1 } }
+    );
+  }
 
-  // 🔥 RETURN FULL MODEL
   return savedCustomer;
 };
+
 
 // const buildCustomerUpdateData = (payload) => {
 //   const update = {};
@@ -455,8 +487,8 @@ export const loginCustomerService = async ({
 
 
 
-export const getMyProfileService = async (activlineUserId) => {
-  const customer = await Customer.findOne({ activlineUserId }).lean();
+export const getMyProfileService = async (userId) => {
+  const customer = await Customer.findById(userId).lean();
 
   if (!customer) {
     throw new ApiError(404, "Customer profile not found");
@@ -464,4 +496,3 @@ export const getMyProfileService = async (activlineUserId) => {
 
   return customer; // 🔥 return FULL document
 };
-

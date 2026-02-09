@@ -28,6 +28,7 @@ export const createCustomerSchema = Joi.object({
   address_pin: Joi.string().optional(),
   address_state: Joi.string().optional(),
   address_country: Joi.string().length(2).optional(),
+  referralCode: Joi.string().optional(),
 
   notifyUserSms: Joi.string().valid("on", "off").optional(),
 });

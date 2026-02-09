@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import routes from "./src/routes/index.route.js";
 import ApiError from "./src/utils/ApiError.js";
 import cookieParser from "cookie-parser";
-
+import path from "path";
 dotenv.config();
 const app = express();
 
@@ -68,7 +68,10 @@ app.use(
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(cookieParser());
-
+app.use(
+  "/uploads/chat",
+  express.static(path.join(process.cwd(), "uploads/chat"))
+);
 app.use("/api", routes);
 
 // Test Route
@@ -116,6 +119,15 @@ app.use((err, req, res, next) => {
     // If it's an instance of ApiError → use its structure
     if (err instanceof ApiError) {
         return res.status(err.statusCode).json(err.toJSON());
+    }
+
+    // ✅ Handle JWT errors globally (Expired/Invalid)
+    if (err.name === "TokenExpiredError" || err.name === "JsonWebTokenError") {
+        return res.status(401).json({
+            success: false,
+            message: "Invalid or expired access token",
+            data: null,
+        });
     }
 
     // Otherwise, fallback to generic

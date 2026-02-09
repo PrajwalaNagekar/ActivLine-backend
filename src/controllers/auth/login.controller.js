@@ -2,6 +2,7 @@ import { asyncHandler } from "../../utils/AsyncHandler.js";
 import ApiResponse from "../../utils/ApiReponse.js";
 import ApiError from "../../utils/ApiError.js";
 import { loginUser } from "../../services/auth/login.service.js";
+import { createActivityLog } from "../../services/ActivityLog/activityLog.service.js";
 
 export const login = asyncHandler(async (req, res) => {
   const { email, password, fcmToken } = req.body;
@@ -11,6 +12,14 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   const result = await loginUser({ email, password, fcmToken });
+
+  await createActivityLog({
+    req,
+    user: result.user,
+    action: "LOGIN",
+    module: "AUTH",
+    description: `${result.user.role} ${result.user.name} logged in successfully`,
+  });
 
   const options = {
     httpOnly: true,

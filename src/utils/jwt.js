@@ -11,7 +11,7 @@ export const generateResetToken = (payload) => {
   return jwt.sign(
     { ...payload, purpose: "PASSWORD_RESET" },
     process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: "15m" }
+    { expiresIn: "30m" }
   );
 };
 
