@@ -121,6 +121,15 @@ app.use((err, req, res, next) => {
         return res.status(err.statusCode).json(err.toJSON());
     }
 
+    // ✅ Handle JWT errors globally (Expired/Invalid)
+    if (err.name === "TokenExpiredError" || err.name === "JsonWebTokenError") {
+        return res.status(401).json({
+            success: false,
+            message: "Invalid or expired access token",
+            data: null,
+        });
+    }
+
     // Otherwise, fallback to generic
     res.status(500).json({
         success: false,

@@ -3,11 +3,28 @@ import { ApiError } from "../../utils/ApiError.js";
 import { getActivlineUserDetails ,updateUserInActivline} from "../../services/customer/customerprofile.service.js";
 
 import { generateOtp, verifyOtp } from "../../services/customer/otp.service.js";
+import Customer from "../../models/Customer/customer.model.js";
+
 export const editUserProfile = asyncHandler(async (req, res) => {
   const { userId, email, phoneNumber } = req.body;
 
   if (!userId) {
     throw new ApiError(400, "userId is required");
+  }
+
+  // 🔐 SECURITY CHECK: Ensure Customer edits ONLY their own profile
+  if (req.user && req.user.role === "CUSTOMER") {
+    // Fetch the full customer profile to get the linked activlineUserId
+    const loggedInCustomer = await Customer.findById(req.user._id);
+
+    if (!loggedInCustomer) {
+      throw new ApiError(404, "Customer profile not found");
+    }
+
+    // Check if the requested userId matches the user's Activline ID
+    if (loggedInCustomer.activlineUserId !== userId) {
+      throw new ApiError(403, "Unauthorized: You can only edit your own profile");
+    }
   }
 
   let user;
@@ -73,6 +90,22 @@ export const editUserProfile = asyncHandler(async (req, res) => {
 
 export const verifyOtpAndUpdate = asyncHandler(async (req, res) => {
   const { userId, otp } = req.body;
+
+  // 🔐 SECURITY CHECK
+  if (req.user && req.user.role === "CUSTOMER") {
+    const loggedInCustomer = await Customer.findById(req.user._id);
+
+    if (!loggedInCustomer) {
+      throw new ApiError(404, "Customer profile not found");
+    }
+
+    if (loggedInCustomer.activlineUserId !== userId) {
+      throw new ApiError(
+        403,
+        "Unauthorized: You can only verify updates for your own profile"
+      );
+    }
+  }
 
   const record = await verifyOtp({
     userId,

@@ -6,6 +6,7 @@ import Admin from "../models/auth/auth.model.js";
 // import Customer from "../models/Customer/user.model.js";
 import StaffStatus from "../models/staff/Staff.model.js";
 import { ROLES } from "../constants/roles.js";
+import CustomerSession from "../models/Customer/customerLogin.model.js";
 
 /**
  * 🔐 Verify JWT (NON-BREAKING, PRODUCTION SAFE)
@@ -194,27 +195,57 @@ export const verifyAccessToken = (req, res, next) => {
   }
 };
 export const verifyCustomerJWT = asyncHandler(async (req, _, next) => {
-  let token =
+  const token =
     req.cookies?.accessToken ||
     req.headers.authorization?.replace("Bearer ", "");
 
   if (!token) {
-    throw new ApiError(401, "Access token missing");
+    throw new ApiError(401, "Unauthorized");
   }
 
+  let decoded;
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.ACCESS_TOKEN_SECRET
-    );
-
-    req.user = {
-      _id: decoded._id,
-      role: "CUSTOMER",
-    };
-
-    next();
-  } catch (err) {
-    throw new ApiError(401, "ACCESS_TOKEN_EXPIRED");
+    decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+  } catch (error) {
+    throw new ApiError(401, "Invalid or expired access token");
   }
+
+  // 🔐 Role check (VERY IMPORTANT)
+  if (decoded.role !== "CUSTOMER") {
+    throw new ApiError(403, "Only customers can logout here");
+  }
+
+  // 🔐 Ensure session exists for THIS device
+  const session = await CustomerSession.findOne({
+    customerId: decoded._id,
+    deviceId: decoded.deviceId,
+  });
+
+  if (!session) {
+    throw new ApiError(401, "Session expired. Login again");
+  }
+
+  req.user = decoded;
+  next();
 });
+
+
+
+
+
+// export const optionalCustomerAuth = (req, _, next) => {
+//   const token =
+//     req.cookies?.accessToken ||
+//     req.headers.authorization?.replace("Bearer ", "");
+
+//   if (!token) return next(); // 👈 no token, continue
+
+//   try {
+//     const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+//     req.user = decoded; // attach if valid
+//   } catch {
+//     // 👈 token expired → ignore
+//   }
+
+//   next();
+// };

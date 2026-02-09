@@ -34,7 +34,7 @@ router.post(
 
 router.post("/login", express.json(), upload.none(), loginCustomer);
 
-router.get("/me", verifyAccessToken, getMyProfile);
+router.get("/me", verifyJWT, getMyProfile);
 
 router.patch(
   "/customer/:customerId/referral",

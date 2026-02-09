@@ -4,6 +4,8 @@ import {
   editUserProfile,
   verifyOtpAndUpdate,
 } from "../../controllers/Customer/profile.controller.js";
+import { verifyJWT } from "../../middlewares/auth.middleware.js";
+import { allowRoles } from "../../middlewares/role.middleware.js";
 
 const router = Router();
 
@@ -15,11 +17,11 @@ router.get("/user/:user_id", fetchUserFullDetails);
 /**
  * POST /api/customer/profile/edit
  */
-router.post("/edit", editUserProfile);
+router.post("/edit", verifyJWT, allowRoles("CUSTOMER"), editUserProfile);
 
 /**
  * POST /api/customer/profile/verify-update
  */
-router.post("/verify-update", verifyOtpAndUpdate);
+router.post("/verify-update", verifyJWT, allowRoles("CUSTOMER"), verifyOtpAndUpdate);
 
 export default router;

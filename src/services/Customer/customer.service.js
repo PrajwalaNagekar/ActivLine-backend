@@ -487,8 +487,8 @@ export const loginCustomerService = async ({
 
 
 
-export const getMyProfileService = async (activlineUserId) => {
-  const customer = await Customer.findOne({ activlineUserId }).lean();
+export const getMyProfileService = async (userId) => {
+  const customer = await Customer.findById(userId).lean();
 
   if (!customer) {
     throw new ApiError(404, "Customer profile not found");

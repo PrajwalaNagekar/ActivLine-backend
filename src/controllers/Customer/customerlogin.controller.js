@@ -11,9 +11,9 @@ import {
 import jwt from "jsonwebtoken";
 
 export const customerLogin = asyncHandler(async (req, res) => {
-  const { phoneNumber, customerId, password } = req.body;
+  const { phoneNumber, customerId, password } = req.body || {};
 
-  if (!phoneNumber && !(customerId && password)) {
+  if (!(phoneNumber && password) && !(customerId && password)) {
     throw new ApiError(400, "Phone number or customerId + password required");
   }
 
@@ -38,7 +38,7 @@ export const customerLogin = asyncHandler(async (req, res) => {
     crypto.randomBytes(8).toString("hex");
 
   // 3️⃣ Tokens
-  const accessToken = generateAccessToken(customer);
+  const accessToken = generateAccessToken(customer, deviceId);
   const refreshToken = generateRefreshToken(customer, deviceId);
 
   // 4️⃣ Save refresh token (per device)
@@ -58,7 +58,7 @@ export const customerLogin = asyncHandler(async (req, res) => {
       httpOnly: true,
       secure: true,
       sameSite: "strict",
-      maxAge: 2 * 60 * 1000,
+      maxAge: 30 * 60 * 1000, // 30 minutes
     })
     .cookie("refreshToken", refreshToken, {
       httpOnly: true,
@@ -71,6 +71,8 @@ export const customerLogin = asyncHandler(async (req, res) => {
       success: true,
       message: "Login successful",
       deviceId,
+    //   userId: customer._id,
+      userId: customer.activlineUserId,
       accessToken,
       refreshToken,
     //   customer: {
@@ -87,7 +89,9 @@ export const customerLogin = asyncHandler(async (req, res) => {
  * =========================
  */
 export const refreshAccessToken = asyncHandler(async (req, res) => {
+  // ✅ Prefer BODY (as you requested)
   const refreshToken =
+    req.body?.refreshToken ||
     req.cookies?.refreshToken ||
     req.headers["x-refresh-token"];
 
@@ -95,16 +99,18 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Refresh token required");
   }
 
+  // 1️⃣ Verify refresh token
   let decoded;
   try {
     decoded = jwt.verify(
       refreshToken,
       process.env.REFRESH_TOKEN_SECRET
     );
-  } catch (err) {
+  } catch {
     throw new ApiError(401, "Invalid refresh token");
   }
 
+  // 2️⃣ Check DB session (MOST IMPORTANT)
   const session = await CustomerSession.findOne({
     customerId: decoded._id,
     deviceId: decoded.deviceId,
@@ -115,39 +121,97 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Session expired. Login again");
   }
 
+  // 3️⃣ Get customer
   const customer = await Customer.findById(decoded._id);
   if (!customer) {
     throw new ApiError(401, "Customer not found");
   }
 
-  const newAccessToken = generateAccessToken(customer);
+  // 4️⃣ Generate NEW tokens (Access + Refresh) & update session
+  const newAccessToken = generateAccessToken(customer, decoded.deviceId);
+  const newRefreshToken = generateRefreshToken(customer, decoded.deviceId);
 
+  // 5️⃣ Atomically update the session with the new refresh token
+  session.refreshToken = newRefreshToken;
+  session.lastUsedAt = new Date();
+  await session.save();
+
+  // 6️⃣ Send response (cookie + body)
   res
     .cookie("accessToken", newAccessToken, {
       httpOnly: true,
       secure: true,
       sameSite: "strict",
-      maxAge: 2 * 60 * 1000,
+      maxAge: 30 * 60 * 1000, // 30 minutes
     })
+    .cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    })
+    .status(200)
     .json({
       success: true,
       message: "Access token refreshed",
-       accessToken: newAccessToken,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
     });
 });
 
-export const customerLogout = asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies?.refreshToken;
 
-  if (refreshToken) {
-    await CustomerSession.deleteOne({ refreshToken });
+
+
+export const customerLogout = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const tokenDeviceId = req.user.deviceId;
+  const tokenRole = req.user.role;
+
+  const bodyDeviceId = req.body?.deviceId;
+
+  // 1️⃣ Role safety (double protection)
+  if (tokenRole !== "CUSTOMER") {
+    throw new ApiError(403, "Invalid role for logout");
   }
 
+  // 2️⃣ DeviceId decision
+  const deviceId = bodyDeviceId || tokenDeviceId;
+
+  if (!deviceId) {
+    throw new ApiError(400, "deviceId is required");
+  }
+
+  // 3️⃣ 🔥 CRITICAL CHECK: BODY vs TOKEN DEVICE
+  if (bodyDeviceId && bodyDeviceId !== tokenDeviceId) {
+    throw new ApiError(
+      403,
+      "Device mismatch. You can only logout your own device"
+    );
+  }
+
+  // 4️⃣ Delete ONLY that customer + device session
+  const result = await CustomerSession.deleteOne({
+    customerId: userId,
+    deviceId,
+  });
+
+  // 5️⃣ Clear cookies (browser safety)
   res
-    .clearCookie("accessToken")
-    .clearCookie("refreshToken")
+    .clearCookie("accessToken", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+    })
+    .clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+    })
+    .status(200)
     .json({
       success: true,
-      message: "Logged out",
+      message: "Logged out successfully",
+      deviceId,
+      sessionRemoved: result.deletedCount === 1,
     });
 });

@@ -121,9 +121,9 @@ export const loginCustomer = async (req, res, next) => {
 
 export const getMyProfile = async (req, res, next) => {
   try {
-    const { activlineUserId } = req.user;
+    const userId = req.user._id;
 
-    const profile = await getMyProfileService(activlineUserId);
+    const profile = await getMyProfileService(userId);
 
     res.status(200).json({
       success: true,

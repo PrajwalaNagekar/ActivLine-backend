@@ -4,22 +4,29 @@ import {
   customerLogout,
   refreshAccessToken,
 } from "../../controllers/Customer/customerlogin.controller.js";
+import { verifyCustomerJWT } from "../../middlewares/auth.middleware.js";
+import { upload } from "../../middlewares/multer.middleware.js";
 
 const router = Router();
 
 /**
  * POST /api/customer/login
  */
-router.post("/login", customerLogin);
+router.post("/login", upload.none(), customerLogin);
 
 /**
  * POST /api/customer/refresh
  */
-router.post("/refresh", refreshAccessToken);
+router.post("/refresh", upload.none(), refreshAccessToken);
 
 /**
  * POST /api/customer/logout
  */
-router.post("/logout", customerLogout);
+router.post(
+  "/logout",
+  verifyCustomerJWT, // ⬅️ STRICT
+  upload.none(),
+  customerLogout
+);
 
 export default router;
