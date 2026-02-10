@@ -48,6 +48,23 @@ export const openChatIfNotExists = async (req) => {
     targetId: room._id,
   });
 
+  // ✅ Send default massage from SuperAdmin
+  const defaultMessage = "What can I Help you";
+  await ChatMsgRepo.saveMessage({
+    roomId: room._id,
+    senderId: "000000000000000000000000", // Placeholder ID for SuperAdmin
+    senderModel: "Admin",
+    senderRole: "SUPER_ADMIN",
+    message: defaultMessage,
+    messageType: "TEXT",
+    statusAtThatTime: room.status,
+  });
+
+  await ChatRoomRepo.updateRoomLastMessage(room._id, {
+    lastMessage: defaultMessage,
+    lastMessageAt: new Date(),
+  });
+
   // ✅ SAVE FIRST MESSAGE (optional)
   if (message && message.trim()) {
     await ChatMsgRepo.saveMessage({

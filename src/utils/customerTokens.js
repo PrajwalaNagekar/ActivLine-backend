@@ -9,7 +9,7 @@ export const generateAccessToken = (customer,deviceId) => {
       phoneNumber: customer.phoneNumber,
     },
     process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: "30m" } // 30 minutes
+    { expiresIn: "90m" } // 30 minutes
   );
 };
 

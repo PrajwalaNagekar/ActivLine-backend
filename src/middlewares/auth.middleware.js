@@ -190,7 +190,7 @@ export const verifyAccessToken = (req, res, next) => {
   } catch (err) {
     return res.status(401).json({
       success: false,
-      message: "Invalid or expired access token",
+      message: "401 Invalid or expired access token",
     });
   }
 };

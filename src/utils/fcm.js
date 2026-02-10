@@ -1,15 +1,11 @@
 // src/utils/fcm.js
-import admin from "firebase-admin";
-import serviceAccount from "../../firebase.json";
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+import { firebaseAdmin } from "../config/firebase.js";
 
 export const sendFCM = async (token, title, body) => {
   if (!token) return;
 
-  await admin.messaging().send({
+  // Use the initialized firebaseAdmin instance
+  await firebaseAdmin.messaging().send({
     token,
     notification: { title, body },
   });
