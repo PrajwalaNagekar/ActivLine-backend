@@ -87,12 +87,6 @@ export const editUserProfile = asyncHandler(async (req, res) => {
 });
 
 
-
-
-
-
-
-
 export const verifyOtpAndUpdate = asyncHandler(async (req, res) => {
   const { userId, otp } = req.body;
 
