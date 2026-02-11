@@ -2,6 +2,7 @@
 
 import * as ChatRoomRepo from "../../repositories/chat/chatRoom.repository.js";
 import * as ChatMsgRepo from "../../repositories/chat/chatMessage.repository.js";
+import ChatMessage from "../../models/chat/chatMessage.model.js";
 import { createActivityLog } from "../ActivityLog/activityLog.service.js";
 import ApiError from "../../utils/ApiError.js";
 
@@ -234,5 +235,26 @@ await ChatMsgRepo.saveMessage({
 
 
 export const getMyChatRooms = async (customerId) => {
-  return ChatRoomRepo.findRoomsByCustomer(customerId);
+  const rooms = await ChatRoomRepo.findRoomsByCustomer(customerId);
+
+  const roomsWithData = await Promise.all(
+    rooms.map(async (room) => {
+      const roomData = room.toObject ? room.toObject() : room;
+
+      const firstMsg = await ChatMessage.findOne({
+        roomId: room._id,
+        senderRole: "CUSTOMER",
+      })
+        .sort({ createdAt: 1 })
+        .select("message")
+        .lean();
+
+      return {
+        ...roomData,
+        Title: firstMsg?.message || null,
+      };
+    })
+  );
+
+  return roomsWithData;
 };
