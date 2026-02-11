@@ -4,6 +4,7 @@ import {
   markNotificationAsRead,
   deleteSingleNotification,
   deleteAllNotifications,
+   getUnreadNotificationCount,
 } from "../../controllers/Notification/notification.controller.js";
 import { verifyJWT } from "../../middlewares/auth.middleware.js";
 
@@ -29,5 +30,15 @@ router.delete("/:id", verifyJWT, deleteSingleNotification);
  * DELETE all notifications (role-based)
  */
 router.delete("/", verifyJWT, deleteAllNotifications);
+/**
+ * 🔔 UNREAD COUNT
+ * GET /api/notifications/unread-count
+ */
+router.get(
+  "/unread-count",
+  verifyJWT,
+  getUnreadNotificationCount
+);
+
 
 export default router;

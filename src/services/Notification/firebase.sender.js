@@ -22,7 +22,7 @@ export const sendFirebaseNotificationByRoles = async ({
   const tokens = users
     .flatMap((u) => u.fcmTokens)
     .map((d) => d.token)
-    .filter(Boolean);
+    .filter((t) => t && !t.startsWith("mock_token_"));
 
   if (!tokens.length) return;
 

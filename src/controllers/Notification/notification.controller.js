@@ -70,3 +70,24 @@ export const deleteAllNotifications = asyncHandler(async (req, res) => {
     ApiResponse.success(null, "All notifications deleted successfully")
   );
 });
+
+/**
+ * 🔔 GET ADMIN UNREAD COUNT
+ */
+/**
+ * 🔔 GET UNREAD COUNT (ADMIN / STAFF)
+ * GET /api/notifications/unread-count
+ */
+export const getUnreadNotificationCount = async (req, res) => {
+  const count = await Notification.countDocuments({
+    recipientUser: req.user._id,
+    isRead: false,
+  });
+
+  res.json({
+    success: true,
+    data: {
+      unreadCount: count,
+    },
+  });
+};

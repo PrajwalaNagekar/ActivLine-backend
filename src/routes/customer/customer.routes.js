@@ -14,10 +14,15 @@ const router = express.Router();
 
 router.post(
   "/create",
-  upload.fields([
-    { name: "idFile", maxCount: 1 },
-    { name: "addressFile", maxCount: 1 },
-  ]),
+  
+ upload.fields([
+  { name: "idFile", maxCount: 1 },
+  { name: "addressFile", maxCount: 1 },
+  { name: "cafFile", maxCount: 1 },
+  { name: "reportFile", maxCount: 1 },
+  { name: "signFile", maxCount: 1 },
+  { name: "profilePicFile", maxCount: 1 },
+]),
   validate(createCustomerSchema), // ✅ validation after multer
   createCustomer
 );

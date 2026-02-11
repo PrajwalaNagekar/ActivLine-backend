@@ -249,3 +249,17 @@ export const verifyCustomerJWT = asyncHandler(async (req, _, next) => {
 
 //   next();
 // };
+export const auth = (...allowedRoles) => {
+  return asyncHandler(async (req, _res, next) => {
+    await verifyJWT(req, _res, () => {});
+
+    if (
+      allowedRoles.length &&
+      !allowedRoles.includes(req.user.role)
+    ) {
+      throw new ApiError(403, "Access denied");
+    }
+
+    next();
+  });
+};

@@ -145,41 +145,118 @@ export const createCustomerService = async (payload, files) => {
   const ownReferralCode = await generateReferralCode(payload.firstName);
 
   // 🔹 4. Save customer
-  const savedCustomer = await createCustomerRepo({
-    userGroupId: payload.userGroupId,
-    accountId: payload.accountId,
-    userName: payload.userName,
-    phoneNumber: payload.phoneNumber,
-    emailId: payload.emailId,
-    userState: payload.userState,
-    userType: payload.userType,
-    activationDate: payload.activationDate,
+ // ❌ Never store plain password inside rawPayload
+const cleanPayload = { ...payload };
+delete cleanPayload.password;
 
-    firstName: payload.firstName,
-    lastName: payload.lastName,
+const savedCustomer = await createCustomerRepo({
+  /* ===============================
+     🔹 CORE DETAILS
+  =============================== */
+  userGroupId: payload.userGroupId,
+  accountId: payload.accountId,
+  userName: payload.userName,
+  phoneNumber: payload.phoneNumber,
+  emailId: payload.emailId,
+  password: payload.password, // will hash if schema has pre-save hook
+  userState: payload.userState,
+  userType: payload.userType,
+  activationDate: payload.activationDate,
+  expirationDate: payload.expirationDate,
+  customActivationDate: payload.customActivationDate,
+  customExpirationDate: payload.customExpirationDate,
 
-    address: {
-      line1: payload.address_line1,
-      city: payload.address_city,
-      pin: payload.address_pin,
-      state: payload.address_state,
-      country: payload.address_country,
-    },
+  /* ===============================
+     🔹 USER DETAILS
+  =============================== */
+  firstName: payload.firstName,
+  lastName: payload.lastName,
+  altPhoneNumber: payload.altPhoneNumber,
+  altEmailId: payload.altEmailId,
 
-    activlineUserId: activlineData?.message?.userId?.toString(),
+  /* ===============================
+     🔹 CUSTOMER ADDRESS
+  =============================== */
+  address: {
+    line1: payload.address_line1,
+    line2: payload.address_line2,
+    city: payload.address_city,
+    pin: payload.address_pin,
+    state: payload.address_state,
+    country: payload.address_country,
+  },
 
-    documents: {
-      idFile: files?.idFile?.[0]?.filename,
-      addressFile: files?.addressFile?.[0]?.filename,
-    },
+  /* ===============================
+     🔹 INSTALLATION ADDRESS
+  =============================== */
+  installationAddress: {
+    line1: payload.installation_address_line1,
+    line2: payload.installation_address_line2,
+    city: payload.installation_address_city,
+    pin: payload.installation_address_pin,
+    state: payload.installation_address_state,
+    country: payload.installation_address_country,
+  },
 
-    referral: {
-      code: ownReferralCode,
-      referredCount: 0
-    },
+  /* ===============================
+     🔹 BILLING / OVERRIDE
+  =============================== */
+  overridePriceEnable: payload.overridePriceEnable,
+  overrideAmount: payload.overrideAmount,
+  overrideAmountBasedOn: payload.overrideAmountBasedOn,
+  createBilling: payload.createBilling,
 
-    rawPayload: payload,
-  });
+  /* ===============================
+     🔹 LOCATION
+  =============================== */
+  locationDetailsNotImport: payload.location_details_not_import,
+  collectionAreaImport: payload.collection_area_import,
+  collectionStreetImport: payload.collection_street_import,
+  collectionBlockImport: payload.collection_block_import,
+
+  /* ===============================
+     🔹 AUTH FLAGS
+  =============================== */
+  disableUserIpAuth: payload.disableUserIpAuth,
+  disableUserMacAuth: payload.disableUserMacAuth,
+  disableUserHotspotAuth: payload.disableUserHotspotAuth,
+
+  /* ===============================
+     🔹 CAF
+  =============================== */
+  cafNum: payload.caf_num,
+
+  /* ===============================
+     🔹 ACTIVLINE ID
+  =============================== */
+  activlineUserId: activlineData?.message?.userId?.toString(),
+
+  /* ===============================
+     🔹 DOCUMENTS
+  =============================== */
+  documents: {
+    idFile: files?.idFile?.[0]?.filename || null,
+    addressFile: files?.addressFile?.[0]?.filename || null,
+    cafFile: files?.cafFile?.[0]?.filename || null,
+    reportFile: files?.reportFile?.[0]?.filename || null,
+    signFile: files?.signFile?.[0]?.filename || null,
+    profilePicFile: files?.profilePicFile?.[0]?.filename || null,
+  },
+
+  /* ===============================
+     🔹 REFERRAL
+  =============================== */
+  referral: {
+    code: ownReferralCode,
+    referredCount: 0,
+  },
+
+  /* ===============================
+     🔹 AUDIT
+  =============================== */
+  rawPayload: cleanPayload,
+});
+
 
   // 🔹 5. Increase referrer count AFTER customer creation
   if (referrer) {
@@ -494,5 +571,82 @@ export const getMyProfileService = async (userId) => {
     throw new ApiError(404, "Customer profile not found");
   }
 
-  return customer; // 🔥 return FULL document
+  return {
+    _id: customer._id,
+
+    /* ===============================
+       🔹 BASIC INFO
+    =============================== */
+    userGroupId: customer.userGroupId,
+    accountId: customer.accountId,
+    userName: customer.userName,
+    phoneNumber: customer.phoneNumber,
+    emailId: customer.emailId,
+    userType: customer.userType,
+
+    /* ===============================
+       🔹 NAME DETAILS
+    =============================== */
+    firstName: customer.firstName,
+    lastName: customer.lastName,
+
+    /* ===============================
+       🔹 PRIMARY ADDRESS
+    =============================== */
+    address: customer.address
+      ? {
+          line1: customer.address.line1,
+          line2: customer.address.line2,
+          city: customer.address.city,
+          pin: customer.address.pin,
+          state: customer.address.state,
+          country: customer.address.country,
+        }
+      : undefined,
+
+    /* ===============================
+       🔹 INSTALLATION ADDRESS
+    =============================== */
+    installationAddress: customer.installationAddress
+      ? {
+          line1: customer.installationAddress.line1,
+          line2: customer.installationAddress.line2,
+          city: customer.installationAddress.city,
+          pin: customer.installationAddress.pin,
+          state: customer.installationAddress.state,
+          country: customer.installationAddress.country,
+        }
+      : undefined,
+
+    /* ===============================
+       🔹 ACTIVLINE
+    =============================== */
+    activlineUserId: customer.activlineUserId,
+
+    /* ===============================
+       🔹 PROFILE IMAGE
+    =============================== */
+    profilePicFile: customer.documents?.profilePicFile,
+
+    /* ===============================
+       🔹 STATUS & REFERRAL
+    =============================== */
+    status: customer.status,
+    referral: customer.referral || {
+      code: undefined,
+      referredCount: 0,
+    },
+
+    /* ===============================
+       🔹 CUSTOM DATES
+    =============================== */
+    customActivationDate: customer.customActivationDate,
+    customExpirationDate: customer.customExpirationDate,
+
+    /* ===============================
+       🔹 TIMESTAMPS
+    =============================== */
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt,
+  };
 };
