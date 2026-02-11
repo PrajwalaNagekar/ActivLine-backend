@@ -8,14 +8,21 @@ import { getNotificationsForRole } from "../../services/Notification/notificatio
  * GET notifications for logged-in user role
  */
 export const getNotifications = asyncHandler(async (req, res) => {
-  const role = req.user.role; // admin | super_admin | staff
+  const { _id, role } = req.user;
 
-  const notifications = await getNotificationsForRole(role);
+  const notifications = await Notification.find({
+    recipientRole: role,          // ✅ role-based filter
+    recipientUser: _id,           // ✅ user-specific filter (important)
+  }).sort({ createdAt: -1 });
 
-  res
-    .status(200)
-    .json(ApiResponse.success(notifications, "Notifications fetched successfully"));
+  res.status(200).json(
+    ApiResponse.success(
+      notifications,
+      "Notifications fetched successfully"
+    )
+  );
 });
+
 
 /**
  * MARK single notification as read

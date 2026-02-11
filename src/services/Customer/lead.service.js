@@ -36,11 +36,14 @@ export const createLeadService = async (payload) => {
     console.error("Activline lead creation failed:", err.message);
   }
 
-  await notifyAdminsOnLeadCreate(cleanPayload);
+  try {
+    await notifyAdminsOnLeadCreate(cleanPayload);
+  } catch (error) {
+    console.error("Failed to send lead notification:", error.message);
+  }
 
   return {
     submittedData: cleanPayload,
     activlineResponse,
   };
 };
-

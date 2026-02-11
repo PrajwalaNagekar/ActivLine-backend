@@ -9,26 +9,16 @@ import Admin from "../../models/auth/auth.model.js";
 export const notifyAdminsOnLeadCreate = async (leadData) => {
   const rolesToNotify = ["ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"];
 
-  // 1️⃣ Find all users who should be notified
-  const usersToNotify = await Admin.find({ role: { $in: rolesToNotify } }).select("_id role").lean();
+  // 1️⃣ Create a single notification for all admin roles
+ await Notification.create({
+  title: "New Customer Lead Created",
+  message: `Lead created by ${payload.firstName}`,
+  data: payload,
+  recipientUser: admin._id,
+  recipientRole: admin.role,
+  isRead: false,   // ✅ IMPORTANT
+});
 
-  if (!usersToNotify.length) {
-    console.log("Lead created, but no admins found to notify.");
-    return;
-  }
-
-  // 2️⃣ Create a notification document in the DB for each admin
-  const notificationPromises = usersToNotify.map(user => {
-    return createNotificationRepo({
-      title: "New Customer Lead Created",
-      message: `Lead created by ${leadData?.firstName || "Customer"}`,
-      data: leadData,
-      recipientUser: user._id,
-      recipientRole: user.role,
-    });
-  });
-
-  await Promise.all(notificationPromises);
 
   // 3️⃣ Send Firebase push notifications (this function already handles finding users by roles)
   const firebasePayload = {

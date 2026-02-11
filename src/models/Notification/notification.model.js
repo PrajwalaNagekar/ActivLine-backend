@@ -34,14 +34,17 @@ const notificationSchema = new mongoose.Schema(
     recipientUser: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
-      required: true,
     },
 
     recipientRole: {
       type: String,
       enum: ["ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"],
-      required: true,
     },
+
+    roles: [{
+      type: String,
+      enum: ["ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"],
+    }],
 
     isRead: {
       type: Boolean,
