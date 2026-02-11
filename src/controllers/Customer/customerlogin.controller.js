@@ -1,8 +1,7 @@
 import { asyncHandler } from "../../utils/AsyncHandler.js";
 import ApiError from "../../utils/ApiError.js";
-import Customer from "../../models/Customer/user.model.js";
+import Customer from "../../models/Customer/customer.model.js";
 import CustomerSession from "../../models/Customer/customerLogin.model.js";
-import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import {
   generateAccessToken,
@@ -11,37 +10,36 @@ import {
 import jwt from "jsonwebtoken";
 
 export const customerLogin = asyncHandler(async (req, res) => {
-  const { phoneNumber, customerId, password } = req.body || {};
+  const { identifier, password } = req.body || {};
 
-  if (!(phoneNumber && password) && !(customerId && password)) {
-    throw new ApiError(400, "Phone number or customerId + password required");
+  if (!identifier || !password) {
+    throw new ApiError(400, "Identifier and password are required");
   }
 
   // 1️⃣ Find customer
-  let customer;
-  if (phoneNumber) {
-    customer = await Customer.findOne({ phoneNumber });
-  } else {
-    customer = await Customer.findOne({ accountId: customerId });
-    if (!customer || !(await bcrypt.compare(password, customer.password))) {
-      throw new ApiError(401, "Invalid credentials");
-    }
-  }
+  const customer = await Customer.findOne({
+    $or: [{ userName: identifier }, { phoneNumber: identifier }],
+  });
 
   if (!customer) {
-    throw new ApiError(404, "Customer not found");
+    throw new ApiError(401, "Invalid credentials");
   }
 
-  // 2️⃣ Device ID
-  const deviceId =
-    req.headers["x-device-id"] ||
-    crypto.randomBytes(8).toString("hex");
+  // 2️⃣ Validate password
+  const isPasswordValid = await customer.comparePassword(password);
+  if (!isPasswordValid) {
+    throw new ApiError(401, "Invalid credentials");
+  }
 
-  // 3️⃣ Tokens
+  // 3️⃣ Device ID
+  const deviceId =
+    req.headers["x-device-id"] || crypto.randomBytes(8).toString("hex");
+
+  // 4️⃣ Tokens
   const accessToken = generateAccessToken(customer, deviceId);
   const refreshToken = generateRefreshToken(customer, deviceId);
 
-  // 4️⃣ Save refresh token (per device)
+  // 5️⃣ Save refresh token (per device)
   await CustomerSession.findOneAndUpdate(
     { customerId: customer._id, deviceId },
     {
@@ -52,7 +50,7 @@ export const customerLogin = asyncHandler(async (req, res) => {
     { upsert: true }
   );
 
-  // 5️⃣ Response
+  // 6️⃣ Response
   res
     .cookie("accessToken", accessToken, {
       httpOnly: true,

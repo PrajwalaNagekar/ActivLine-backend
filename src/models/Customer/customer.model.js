@@ -99,6 +99,7 @@
 
 
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 
 const customerSchema = new mongoose.Schema(
   {
@@ -124,6 +125,11 @@ const customerSchema = new mongoose.Schema(
       type: String,
       required: true,
       index: true,
+    },
+
+    password: {
+      type: String,
+      required: true,
     },
 
     emailId: {
@@ -236,6 +242,20 @@ const customerSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// 🔐 Hash password before saving
+customerSchema.pre("save", async function () {
+  if (!this.isModified("password")) {
+    return;
+  }
+  this.password = await bcrypt.hash(this.password, 10);
+});
+
+// 🔍 Compare password method
+customerSchema.methods.comparePassword = async function (enteredPassword) {
+  if (!this.password) return false;
+  return await bcrypt.compare(enteredPassword, this.password);
+};
 
 const Customer =
   mongoose.models.Customer ||

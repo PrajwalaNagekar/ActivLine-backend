@@ -1,7 +1,8 @@
 // import { createCustomerSchema } from "../../validations/Customer/customer.validation.js";
 
+import { asyncHandler } from "../../utils/AsyncHandler.js";
 import ApiResponse from "../../utils/ApiReponse.js";
-import Customer from "../../models/Customer/user.model.js";
+import Customer from "../../models/Customer/customer.model.js";
 import jwt from "jsonwebtoken";
 // import { loginCustomerSchema } from "../../validations/Customer/customer.validation.js";
 import { createCustomerService ,updateCustomerService} from "../../services/Customer/customer.service.js";
@@ -11,41 +12,33 @@ import { getMyProfileService } from "../../services/Customer/customer.service.js
 // import Customer from "../../models/Customer/customer.model.js";
 import ApiError from "../../utils/ApiError.js";
 
-export const createCustomer = async (req, res, next) => {
-  try {
-    const customer = await createCustomerService(req.body, req.files);
+export const createCustomer = asyncHandler(async (req, res) => {
+  const customer = await createCustomerService(req.body, req.files);
 
-    res.status(201).json({
-      success: true,
-      message: "Customer created successfully",
-      data: customer, // 🔥 FULL MODEL HERE
-    });
-  } catch (err) {
-    next(err);
-  }
-};
+  res.status(201).json({
+    success: true,
+    message: "Customer created successfully",
+    data: customer, // 🔥 FULL MODEL HERE
+  });
+});
 
 
 
-export const updateCustomer = async (req, res, next) => {
-  try {
-    const { activlineUserId } = req.params;
+export const updateCustomer = asyncHandler(async (req, res) => {
+  const { activlineUserId } = req.params;
 
-    const result = await updateCustomerService(
-      activlineUserId,
-      req.body,
-      req.files
-    );
+  const result = await updateCustomerService(
+    activlineUserId,
+    req.body,
+    req.files
+  );
 
-    res.status(200).json({
-      success: true,
-      message: "Customer updated successfully",
-      data: result,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
+  res.status(200).json({
+    success: true,
+    message: "Customer updated successfully",
+    data: result,
+  });
+});
 
 // export const loginCustomer = async (req, res) => {
 //   const { error, value } = loginCustomerSchema.validate(req.body);
@@ -60,82 +53,79 @@ export const updateCustomer = async (req, res, next) => {
 
 
 
-export const loginCustomer = async (req, res, next) => {
-  try {
-    const { mobile, password } = req.body;
+export const loginCustomer = asyncHandler(async (req, res) => {
+  const { identifier, password } = req.body;
 
-    if (!mobile || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Mobile and password are required",
-      });
-    }
-
-    const user = await Customer.findOne({ mobile });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User does not exist",
-      });
-    }
-
-    const isPasswordValid = await user.comparePassword(password);
-
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid user credentials",
-      });
-    }
-
-    const accessToken = jwt.sign(
-      { _id: user._id, email: user.email, role: user.role },
-      process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "1d" }
-    );
-
-    const refreshToken = jwt.sign(
-      { _id: user._id },
-      process.env.REFRESH_TOKEN_SECRET || "refresh-secret",
-      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "10d" }
-    );
-
-    const loggedInUser = await Customer.findById(user._id).select("-password");
-
-    res.status(200).json({
-      success: true,
-      message: "Login successful",
-      data: {
-        user: loggedInUser,
-        accessToken,
-        refreshToken,
-      },
+  if (!identifier || !password) {
+    return res.status(400).json({
+      success: false,
+      message: "Username/Phone and password are required",
     });
-  } catch (err) {
-    next(err);
   }
-};
 
+  const user = await Customer.findOne({
+    $or: [
+      { userName: identifier },
+      { phoneNumber: identifier }
+    ]
+  });
 
-
-export const getMyProfile = async (req, res, next) => {
-  try {
-    const userId = req.user._id;
-
-    const profile = await getMyProfileService(userId);
-
-    res.status(200).json({
-      success: true,
-      message: "Profile fetched successfully",
-      data: profile,
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: "User does not exist",
     });
-  } catch (err) {
-    next(err);
   }
-};
 
-export const updateCustomerReferralCode = async (req, res) => {
+  const isPasswordValid = await user.comparePassword(password);
+
+  if (!isPasswordValid) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid user credentials",
+    });
+  }
+
+  const accessToken = jwt.sign(
+    { _id: user._id, role: "CUSTOMER" },
+    process.env.ACCESS_TOKEN_SECRET,
+    { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "1d" }
+  );
+
+  const refreshToken = jwt.sign(
+    { _id: user._id },
+    process.env.REFRESH_TOKEN_SECRET || "refresh-secret",
+    { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "10d" }
+  );
+
+  const loggedInUser = await Customer.findById(user._id).select("-password");
+
+  res.status(200).json({
+    success: true,
+    message: "Login successful",
+    data: {
+      user: loggedInUser,
+      accessToken,
+      refreshToken,
+    },
+  });
+});
+
+
+
+export const getMyProfile = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const profile = await getMyProfileService(userId);
+
+  res.status(200).json({
+    success: true,
+    message: "Profile fetched successfully",
+    data: profile,
+  });
+});
+
+export const updateCustomerReferralCode = asyncHandler(async (req, res) => {
   const { customerId } = req.params;
   const { referralCode } = req.body;
 
@@ -169,10 +159,10 @@ export const updateCustomerReferralCode = async (req, res) => {
       referralCode
     }
   });
-};
+});
 
 
-export const deleteCustomerReferralCode = async (req, res) => {
+export const deleteCustomerReferralCode = asyncHandler(async (req, res) => {
   const { customerId } = req.params;
 
   const customer = await Customer.findById(customerId);
@@ -187,26 +177,22 @@ export const deleteCustomerReferralCode = async (req, res) => {
     success: true,
     message: "Referral code deleted"
   });
-};
+});
 
 
-export const getMyReferralCode = async (req, res, next) => {
-  try {
-    const userId = req.user._id;
+export const getMyReferralCode = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
 
-    const customer = await Customer.findById(userId).select("referral");
+  const customer = await Customer.findById(userId).select("referral");
 
-    if (!customer) {
-      throw new ApiError(404, "Customer not found");
-    }
-
-    res.status(200).json({
-      success: true,
-      data: {
-        referralCode: customer.referral?.code || null
-      }
-    });
-  } catch (err) {
-    next(err);
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
   }
-};
+
+  res.status(200).json({
+    success: true,
+    data: {
+      referralCode: customer.referral?.code || null
+    }
+  });
+});

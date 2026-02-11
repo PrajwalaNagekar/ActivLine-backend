@@ -96,9 +96,28 @@ export const getMessagesByRoom = async (roomId) => {
 
 
 export const createCustomerService = async (payload, files) => {
+  // 🔹 1. Generate sequential username
+  let nextUserNumber = 1;
+  // Find the last customer to determine the next user number
+  const lastCustomer = await Customer.findOne({}, { userName: 1 })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (lastCustomer && lastCustomer.userName && lastCustomer.userName.startsWith("AL-")) {
+    const lastNumberStr = lastCustomer.userName.split("-")[1];
+    if (lastNumberStr) {
+      const lastNumber = parseInt(lastNumberStr, 10);
+      if (!isNaN(lastNumber)) {
+        nextUserNumber = lastNumber + 1;
+      }
+    }
+  }
+  const newUserName = `AL-${String(nextUserNumber).padStart(6, "0")}`;
+
   const formData = new FormData();
 
-  Object.entries(payload).forEach(([key, value]) => {
+  // Use the generated username for Activline and local DB
+  Object.entries({ ...payload, userName: newUserName }).forEach(([key, value]) => {
     if (value !== undefined && value !== "") {
       formData.append(key, value);
     }
@@ -115,7 +134,7 @@ export const createCustomerService = async (payload, files) => {
     );
   }
 
-  // 🔹 1. Create user in Activline (UNCHANGED)
+  // 🔹 2. Create user in Activline
   const activlineData = await activlineClient.post(
     "/add_user",
     formData,
@@ -129,7 +148,7 @@ export const createCustomerService = async (payload, files) => {
     );
   }
 
-  // 🔹 2. Validate referral code if user used one
+  // 🔹 3. Validate referral code if user used one
   let referrer = null;
   if (payload.referralCode) {
     referrer = await Customer.findOne({
@@ -141,10 +160,10 @@ export const createCustomerService = async (payload, files) => {
     }
   }
 
-  // 🔹 3. Generate OWN referral code
+  // 🔹 4. Generate OWN referral code
   const ownReferralCode = await generateReferralCode(payload.firstName);
 
-  // 🔹 4. Save customer
+  // 🔹 5. Save customer
  // ❌ Never store plain password inside rawPayload
 const cleanPayload = { ...payload };
 delete cleanPayload.password;
@@ -155,7 +174,7 @@ const savedCustomer = await createCustomerRepo({
   =============================== */
   userGroupId: payload.userGroupId,
   accountId: payload.accountId,
-  userName: payload.userName,
+  userName: newUserName, // Use generated username
   phoneNumber: payload.phoneNumber,
   emailId: payload.emailId,
   password: payload.password, // will hash if schema has pre-save hook
@@ -258,7 +277,7 @@ const savedCustomer = await createCustomerRepo({
 });
 
 
-  // 🔹 5. Increase referrer count AFTER customer creation
+  // 🔹 6. Increase referrer count AFTER customer creation
   if (referrer) {
     await Customer.updateOne(
       { _id: referrer._id },
