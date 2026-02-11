@@ -14,6 +14,7 @@ import ApiError from "../../utils/ApiError.js";
 import FormData from "form-data";
 import fs from "fs";
 import activlineClient from "../../external/activline/activline.client.js";
+import { uploadOnCloudinary } from "../../utils/cloudinary.js";
 // import { createCustomer } from "../../repositories/Customer/customer.repository.js";
 import Customer from "../../models/Customer/customer.model.js";
 // export const createCustomer = async (payload) => {
@@ -96,6 +97,7 @@ export const getMessagesByRoom = async (roomId) => {
 
 
 export const createCustomerService = async (payload, files) => {
+  const uploadedFilePaths = [];
   // 🔹 1. Generate sequential username
   let nextUserNumber = 1;
   // Find the last customer to determine the next user number
@@ -124,10 +126,12 @@ export const createCustomerService = async (payload, files) => {
   });
 
   if (files?.idFile) {
+    uploadedFilePaths.push(files.idFile[0].path);
     formData.append("idFile", fs.createReadStream(files.idFile[0].path));
   }
 
   if (files?.addressFile) {
+    uploadedFilePaths.push(files.addressFile[0].path);
     formData.append(
       "addressFile",
       fs.createReadStream(files.addressFile[0].path)
@@ -147,6 +151,30 @@ export const createCustomerService = async (payload, files) => {
       activlineData?.message || "Failed to create user in Activline"
     );
   }
+
+  // 🔹 NEW: Upload all files to Cloudinary
+  const documentUrls = {};
+  const uploadPromises = [];
+  const fileTypes = ['idFile', 'addressFile', 'cafFile', 'reportFile', 'signFile', 'profilePicFile'];
+
+  for (const fileType of fileTypes) {
+    if (files?.[fileType]?.[0]?.path) {
+      const filePath = files[fileType][0].path;
+      if (!uploadedFilePaths.includes(filePath)) {
+        uploadedFilePaths.push(filePath);
+      }
+      uploadPromises.push(
+        uploadOnCloudinary(filePath).then(result => {
+          if (result) {
+            documentUrls[fileType] = result.secure_url;
+          }
+        })
+      );
+    }
+  }
+
+  // Wait for all Cloudinary uploads to finish
+  await Promise.all(uploadPromises);
 
   // 🔹 3. Validate referral code if user used one
   let referrer = null;
@@ -254,12 +282,12 @@ const savedCustomer = await createCustomerRepo({
      🔹 DOCUMENTS
   =============================== */
   documents: {
-    idFile: files?.idFile?.[0]?.filename || null,
-    addressFile: files?.addressFile?.[0]?.filename || null,
-    cafFile: files?.cafFile?.[0]?.filename || null,
-    reportFile: files?.reportFile?.[0]?.filename || null,
-    signFile: files?.signFile?.[0]?.filename || null,
-    profilePicFile: files?.profilePicFile?.[0]?.filename || null,
+    idFile: documentUrls.idFile || null,
+    addressFile: documentUrls.addressFile || null,
+    cafFile: documentUrls.cafFile || null,
+    reportFile: documentUrls.reportFile || null,
+    signFile: documentUrls.signFile || null,
+    profilePicFile: documentUrls.profilePicFile || null,
   },
 
   /* ===============================
@@ -284,6 +312,13 @@ const savedCustomer = await createCustomerRepo({
       { $inc: { "referral.referredCount": 1 } }
     );
   }
+
+  // 🔹 7. Clean up local files
+  uploadedFilePaths.forEach(filePath => {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  });
 
   return savedCustomer;
 };
