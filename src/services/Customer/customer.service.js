@@ -14,34 +14,9 @@ import ApiError from "../../utils/ApiError.js";
 import FormData from "form-data";
 import fs from "fs";
 import activlineClient from "../../external/activline/activline.client.js";
-import { uploadOnCloudinary } from "../../utils/cloudinary.js";
+import { uploadOnCloudinary,deleteFromCloudinary } from "../../utils/cloudinary.js";
 // import { createCustomer } from "../../repositories/Customer/customer.repository.js";
 import Customer from "../../models/Customer/customer.model.js";
-// export const createCustomer = async (payload) => {
-//   const existing = await CustomerRepo.findByMobile(payload.mobile);
-//   if (existing) {
-//     throw new ApiError(409, "Mobile already registered");
-//   }
-
-//   const customerId = "ACT" + Date.now();
-
-//   const customer = await CustomerRepo.createCustomer({
-//     ...payload,
-//     customerId,
-//   });
-
-//   // ✅ THIS OBJECT CONTROLS THE RESPONSE
-//   return {
-//     _id: customer._id,
-//     customerId: customer.customerId,
-//     fullName: customer.fullName,
-//     mobile: customer.mobile,
-//     email: customer.email,
-//     role: customer.role,          // ✅ MUST BE HERE
-//     createdAt: customer.createdAt,
-//   };
-// };
-
 
 
 
@@ -322,37 +297,6 @@ const savedCustomer = await createCustomerRepo({
 
   return savedCustomer;
 };
-
-
-// const buildCustomerUpdateData = (payload) => {
-//   const update = {};
-
-//   // Simple fields
-//   if (payload.userName) update.userName = payload.userName;
-//   if (payload.emailId) update.emailId = payload.emailId;
-//   if (payload.userType) update.userType = payload.userType;
-//   if (payload.activationDate) update.activationDate = payload.activationDate;
-//   if (payload.firstName) update.firstName = payload.firstName;
-//   if (payload.lastName) update.lastName = payload.lastName;
-
-//   // Address mapping
-//   if (
-//     payload.address_line1 ||
-//     payload.address_city ||
-//     payload.address_pin ||
-//     payload.address_state ||
-//     payload.address_country
-//   ) {
-//     update.address = {};
-//     if (payload.address_line1) update.address.line1 = payload.address_line1;
-//     if (payload.address_city) update.address.city = payload.address_city;
-//     if (payload.address_pin) update.address.pin = payload.address_pin;
-//     if (payload.address_state) update.address.state = payload.address_state;
-//     if (payload.address_country) update.address.country = payload.address_country;
-//   }
-
-//   return update;
-// };
 
 const buildCustomerUpdateData = (payload) => {
   const update = {};
@@ -703,4 +647,75 @@ export const getMyProfileService = async (userId) => {
     createdAt: customer.createdAt,
     updatedAt: customer.updatedAt,
   };
+};
+
+// services/Customer/customer.service.js
+
+
+export const getProfileImageService = async (userId) => {
+  const customer = await Customer.findById(userId).select("documents.profilePicFile");
+
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  return {
+    profilePicFile: customer.documents?.profilePicFile || null,
+  };
+};
+
+export const updateProfileImageService = async (userId, file) => {
+  const customer = await Customer.findById(userId);
+
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  // 🔹 Upload new image
+  const uploaded = await uploadOnCloudinary(file.path);
+
+  if (!uploaded) {
+    throw new ApiError(500, "Cloudinary upload failed");
+  }
+
+  // 🔹 Delete old image (if exists)
+  const oldImage = customer.documents?.profilePicFile;
+
+  if (oldImage) {
+    await deleteFromCloudinary(oldImage);
+  }
+
+  // 🔹 Update DB
+  customer.documents.profilePicFile = uploaded.secure_url;
+  await customer.save();
+
+  // 🔹 Cleanup local file
+  if (fs.existsSync(file.path)) {
+    fs.unlinkSync(file.path);
+  }
+
+  return {
+    profilePicFile: uploaded.secure_url,
+  };
+};
+
+export const deleteProfileImageService = async (userId) => {
+  const customer = await Customer.findById(userId);
+
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  const oldImage = customer.documents?.profilePicFile;
+
+  if (!oldImage) {
+    throw new ApiError(400, "No profile image to delete");
+  }
+
+  // 🔹 Delete from Cloudinary
+  await deleteFromCloudinary(oldImage);
+
+  // 🔹 Remove from DB
+  customer.documents.profilePicFile = null;
+  await customer.save();
 };

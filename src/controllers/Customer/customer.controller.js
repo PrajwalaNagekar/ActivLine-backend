@@ -5,13 +5,11 @@ import ApiResponse from "../../utils/ApiReponse.js";
 import Customer from "../../models/Customer/customer.model.js";
 import jwt from "jsonwebtoken";
 // import { loginCustomerSchema } from "../../validations/Customer/customer.validation.js";
-import { createCustomerService ,updateCustomerService} from "../../services/Customer/customer.service.js";
-import { getMyProfileService } from "../../services/Customer/customer.service.js";
+import { createCustomerService ,updateCustomerService,getMyProfileService,getProfileImageService,
+  updateProfileImageService,
+  deleteProfileImageService,} from "../../services/Customer/customer.service.js";
 
-
-// import Customer from "../../models/Customer/customer.model.js";
 import ApiError from "../../utils/ApiError.js";
-
 export const createCustomer = asyncHandler(async (req, res) => {
   const customer = await createCustomerService(req.body, req.files);
 
@@ -195,4 +193,41 @@ export const getMyReferralCode = asyncHandler(async (req, res) => {
       referralCode: customer.referral?.code || null
     }
   });
+});
+
+// controllers/Customer/customer.controller.js
+
+
+export const getProfileImage = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const image = await getProfileImageService(userId);
+
+  res.status(200).json(
+    ApiResponse.success(image, "Profile image fetched successfully")
+  );
+});
+
+export const updateProfileImage = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  if (!req.file) {
+    throw new ApiError(400, "Profile image file is required");
+  }
+
+  const updated = await updateProfileImageService(userId, req.file);
+
+  res.status(200).json(
+    ApiResponse.success(updated, "Profile image updated successfully")
+  );
+});
+
+export const deleteProfileImage = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  await deleteProfileImageService(userId);
+
+  res.status(200).json(
+    ApiResponse.success(null, "Profile image deleted successfully")
+  );
 });

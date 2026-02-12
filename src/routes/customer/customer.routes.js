@@ -5,10 +5,10 @@ import { validate } from "../../middlewares/validate.middleware.js";
 import { createCustomerSchema } from "../../validations/Customer/customer.validation.js";
 import { loginCustomer } from "../../controllers/Customer/customer.controller.js";
 import { verifyAccessToken } from "../../middlewares/auth.middleware.js";
-import { verifyJWT } from "../../middlewares/auth.middleware.js";
+import { verifyJWT,auth } from "../../middlewares/auth.middleware.js";
 import { allowRoles } from "../../middlewares/role.middleware.js";
 import { updateCustomerReferralCode } from "../../controllers/Customer/customer.controller.js";
-import { getMyReferralCode } from "../../controllers/Customer/customer.controller.js";
+import { getMyReferralCode,getProfileImage,updateProfileImage,deleteProfileImage } from "../../controllers/Customer/customer.controller.js";
 
 const router = express.Router();
 
@@ -60,5 +60,25 @@ router.get(
   allowRoles("CUSTOMER"),
   getMyReferralCode
 );
+
+// routes/customer.routes.js
+
+router.get("/me/profile-image", verifyJWT, auth("CUSTOMER"), getProfileImage);
+
+router.put(
+  "/me/profile-image",
+  verifyJWT,
+  auth("CUSTOMER"),
+  upload.single("profilePicFile"),
+  updateProfileImage
+);
+
+router.delete(
+  "/me/profile-image",
+  verifyJWT,
+  auth("CUSTOMER"),
+  deleteProfileImage
+);
+
 
 export default router;

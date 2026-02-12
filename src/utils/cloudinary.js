@@ -23,5 +23,27 @@ const uploadOnCloudinary = async (localFilePath) => {
   }
 };
 
+
+const deleteFromCloudinary = async (fileUrl) => {
+  try {
+    if (!fileUrl) return;
+
+    // Extract public_id safely
+    const parts = fileUrl.split("/");
+    const fileName = parts[parts.length - 1];   // e.g. abc123.jpg
+    const publicId = fileName.split(".")[0];     // e.g. abc123
+
+    console.log("🗑 Deleting from Cloudinary:", publicId);
+
+    await cloudinary.uploader.destroy(publicId, {
+      resource_type: "image", // change to "raw" if deleting PDFs/docs
+    });
+
+  } catch (error) {
+    console.error("Cloudinary delete error:", error.message);
+  }
+};
+
+export { deleteFromCloudinary };
 export { uploadOnCloudinary };
 export default cloudinary;
