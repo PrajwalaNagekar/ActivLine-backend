@@ -125,12 +125,26 @@ export const updateTicketStatus = async (req, roomId, newStatus) => {
 
   const updatedRoom = await ChatRoomRepo.updateStatus(roomId, newStatus);
 
+  // 🔍 Find the first message sent by the customer
+  const firstCustomerMsg = await ChatMessage.findOne({
+    roomId,
+    senderRole: "CUSTOMER",
+  })
+    .sort({ createdAt: 1 })
+    .select("message");
+
+  let statusMessage = `Status changed to ${newStatus}`;
+
+  if (firstCustomerMsg?.message) {
+    statusMessage += `\n\nTicket: ${firstCustomerMsg.message}`;
+  }
+
   await ChatMsgRepo.saveMessage({
     roomId,
     senderId: req.user._id,
     senderModel: "Admin",
     senderRole: req.user.role,
-    message: `Status changed to ${newStatus}`,
+    message: statusMessage,
     messageType: "TEXT",
     statusAtThatTime: newStatus,
   });
@@ -140,11 +154,13 @@ export const updateTicketStatus = async (req, roomId, newStatus) => {
     await notifyCustomer({
       customerId: room.customer._id, // IMPORTANT
       type: "TICKET",
-      title: "Ticket Update",
+      roomId,
+        title: firstCustomerMsg?.message || "",
       message:
         newStatus === "RESOLVED"
           ? "✅ Your issue has been resolved"
           : "📌 Your ticket has been closed",
+      
     });
   }
 

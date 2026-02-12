@@ -9,6 +9,7 @@ export const notifyCustomer = async ({
   title,
   message,
   type = "SYSTEM",
+  data = {},
 }) => {
   // 🔹 Save in DB
   const notification = await Notification.create({
@@ -16,6 +17,7 @@ export const notifyCustomer = async ({
     title,
     message,
     type,
+    data,
   });
 
   // 🔹 Get customer FCM token
