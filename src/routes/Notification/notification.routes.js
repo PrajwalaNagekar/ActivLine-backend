@@ -7,6 +7,7 @@ import {
    getUnreadNotificationCount,
 } from "../../controllers/Notification/notification.controller.js";
 import { verifyJWT } from "../../middlewares/auth.middleware.js";
+import customerNotificationRoutes from "./customer.notification.routes.js";
 
 const router = Router();
 
@@ -39,6 +40,7 @@ router.get(
   verifyJWT,
   getUnreadNotificationCount
 );
+router.use("/", customerNotificationRoutes);
 
 
 export default router;

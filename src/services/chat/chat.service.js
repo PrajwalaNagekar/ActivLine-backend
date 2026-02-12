@@ -6,7 +6,7 @@ import ChatMessage from "../../models/chat/chatMessage.model.js";
 import { createActivityLog } from "../ActivityLog/activityLog.service.js";
 import ApiError from "../../utils/ApiError.js";
 import crypto from "crypto";
-
+import { notifyCustomer } from "../Notification/customer.notification.service.js";
 /**
  * ===============================
  * ADMIN → FETCH ALL ROOMS
@@ -92,6 +92,64 @@ export const openChatIfNotExists = async (req) => {
   return room;
 };
 
+// import { notifyCustomer } from "../Notification/customer.notification.service.js";
+
+export const updateTicketStatus = async (req, roomId, newStatus) => {
+  const room = await ChatRoomRepo.findById(roomId);
+  if (!room) throw new ApiError(404, "Ticket not found");
+
+  const userRole = req.user.role;
+  const currentStatus = room.status;
+
+  const allowedTransitions = {
+    OPEN: ["IN_PROGRESS", "RESOLVED", "CLOSED", "OPEN"],
+    ASSIGNED: ["IN_PROGRESS", "RESOLVED", "CLOSED", "OPEN"],
+    IN_PROGRESS: ["RESOLVED", "CLOSED", "IN_PROGRESS"],
+    RESOLVED: ["CLOSED", "OPEN", "IN_PROGRESS", "RESOLVED"],
+    CLOSED: ["CLOSED"],
+  };
+
+  if (!allowedTransitions[currentStatus].includes(newStatus)) {
+    throw new ApiError(
+      400,
+      `Invalid status change from ${currentStatus} to ${newStatus}`
+    );
+  }
+
+  if (
+    ["IN_PROGRESS", "RESOLVED", "CLOSED"].includes(newStatus) &&
+    !["ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"].includes(userRole)
+  ) {
+    throw new ApiError(403, "You are not allowed to update ticket status");
+  }
+
+  const updatedRoom = await ChatRoomRepo.updateStatus(roomId, newStatus);
+
+  await ChatMsgRepo.saveMessage({
+    roomId,
+    senderId: req.user._id,
+    senderModel: "Admin",
+    senderRole: req.user.role,
+    message: `Status changed to ${newStatus}`,
+    messageType: "TEXT",
+    statusAtThatTime: newStatus,
+  });
+
+  // ✅ 🔔 NOTIFY CUSTOMER
+  if (["RESOLVED", "CLOSED"].includes(newStatus)) {
+    await notifyCustomer({
+      customerId: room.customer._id, // IMPORTANT
+      type: "TICKET",
+      title: "Ticket Update",
+      message:
+        newStatus === "RESOLVED"
+          ? "✅ Your issue has been resolved"
+          : "📌 Your ticket has been closed",
+    });
+  }
+
+  return updatedRoom;
+};
 
 /**
  * ===============================
@@ -185,58 +243,7 @@ export const getAssignedRoomsForStaff = async (staffId) => {
   return ChatRoomRepo.getAssignedRoomsForStaff(staffId);
 };
 
-export const updateTicketStatus = async (req, roomId, newStatus) => {
-  const room = await ChatRoomRepo.findById(roomId);
-  if (!room) throw new ApiError(404, "Ticket not found");
 
-  const userRole = req.user.role;
-  const currentStatus = room.status;
-
-  // 🔐 STATUS TRANSITION RULES
-  const allowedTransitions = {
-    OPEN: ["IN_PROGRESS", "RESOLVED","CLOSED","OPEN"],
-    ASSIGNED: ["IN_PROGRESS", "RESOLVED","CLOSED","OPEN"],
-    IN_PROGRESS: ["RESOLVED","CLOSED","IN_PROGRESS"],
-    RESOLVED: ["CLOSED", "OPEN","IN_PROGRESS","RESOLVED"], // reopen allowed
-    CLOSED: ["CLOSED"],
-  };
-
-  if (!allowedTransitions[currentStatus].includes(newStatus)) {
-    throw new ApiError(
-      400,
-      `Invalid status change from ${currentStatus} to ${newStatus}`
-    );
-  }
-
-  // 🔐 RBAC
-  if (
-    ["IN_PROGRESS", "RESOLVED", "CLOSED"].includes(newStatus) &&
-    !["ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"].includes(userRole)
-  ) {
-    throw new ApiError(403, "You are not allowed to update ticket status");
-  }
-
-  const updatedRoom = await ChatRoomRepo.updateStatus(roomId, newStatus);
-await ChatMsgRepo.saveMessage({
-  roomId: roomId,
-  senderId: req.user._id,
-  senderModel: "Admin",
-  senderRole: req.user.role,
-  message: `Status changed to ${newStatus}`,
-  messageType: "TEXT",
-  statusAtThatTime: newStatus,
-});
-
-  // await createActivityLog({
-  //   req,
-  //   action: "UPDATE",
-  //   module: "TICKET",
-  //   description: `Updated ticket status to ${newStatus}`,
-  //   targetId: updatedRoom._id,
-  // });
-
-  return updatedRoom;
-};
 
 
 export const getMyChatRooms = async (customerId) => {

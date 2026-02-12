@@ -140,13 +140,13 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
       httpOnly: true,
       secure: true,
       sameSite: "strict",
-      maxAge: 30 * 60 * 1000, // 30 minutes
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 30 minutes
     })
     .cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
       secure: true,
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+     maxAge: 10 * 24 * 60 * 60 * 1000, // 7 days
     })
     .status(200)
     .json({
@@ -213,3 +213,8 @@ export const customerLogout = asyncHandler(async (req, res) => {
       sessionRemoved: result.deletedCount === 1,
     });
 });
+
+
+
+
+
