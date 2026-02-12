@@ -36,7 +36,7 @@ const activityLogSchema = new mongoose.Schema(
     description: String,
 
     targetId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       default: null,
     },
 

@@ -5,6 +5,7 @@ import * as ChatMsgRepo from "../../repositories/chat/chatMessage.repository.js"
 import ChatMessage from "../../models/chat/chatMessage.model.js";
 import { createActivityLog } from "../ActivityLog/activityLog.service.js";
 import ApiError from "../../utils/ApiError.js";
+import crypto from "crypto";
 
 /**
  * ===============================
@@ -34,8 +35,12 @@ export const openChatIfNotExists = async (req) => {
   const customerId = req.user._id;
   const { message } = req.body;
 
+  // ✅ Generate 10-digit numeric ID
+  const roomId = crypto.randomInt(1000000000, 10000000000).toString();
+
   // ✅ ALWAYS CREATE NEW ROOM (no reuse)
   const room = await ChatRoomRepo.createRoom({
+    _id: roomId,
     customer: customerId,
     status: "OPEN",
   });
