@@ -73,28 +73,32 @@ export const getMessagesByRoom = async (roomId) => {
 
 export const createCustomerService = async (payload, files) => {
   const uploadedFilePaths = [];
-  // 🔹 1. Generate sequential username
-  let nextUserNumber = 1;
-  // Find the last customer to determine the next user number
-  const lastCustomer = await Customer.findOne({}, { userName: 1 })
-    .sort({ createdAt: -1 })
-    .lean();
+  // 🔹 1. Determine Username (Use provided or generate)
+  let finalUserName = payload.userName;
 
-  if (lastCustomer && lastCustomer.userName && lastCustomer.userName.startsWith("AL-")) {
-    const lastNumberStr = lastCustomer.userName.split("-")[1];
-    if (lastNumberStr) {
-      const lastNumber = parseInt(lastNumberStr, 10);
-      if (!isNaN(lastNumber)) {
-        nextUserNumber = lastNumber + 1;
+  if (!finalUserName) {
+    let nextUserNumber = 1;
+    // Find the last customer to determine the next user number
+    const lastCustomer = await Customer.findOne({}, { userName: 1 })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (lastCustomer && lastCustomer.userName && lastCustomer.userName.startsWith("AL-")) {
+      const lastNumberStr = lastCustomer.userName.split("-")[1];
+      if (lastNumberStr) {
+        const lastNumber = parseInt(lastNumberStr, 10);
+        if (!isNaN(lastNumber)) {
+          nextUserNumber = lastNumber + 1;
+        }
       }
     }
+    finalUserName = `AL-${String(nextUserNumber).padStart(6, "0")}`;
   }
-  const newUserName = `AL-${String(nextUserNumber).padStart(6, "0")}`;
 
   const formData = new FormData();
 
-  // Use the generated username for Activline and local DB
-  Object.entries({ ...payload, userName: newUserName }).forEach(([key, value]) => {
+  // Use the determined username for Activline and local DB
+  Object.entries({ ...payload, userName: finalUserName }).forEach(([key, value]) => {
     if (value !== undefined && value !== "") {
       formData.append(key, value);
     }
@@ -163,21 +167,18 @@ export const createCustomerService = async (payload, files) => {
     }
   }
 
-  // 🔹 4. Generate OWN referral code
-  const ownReferralCode = await generateReferralCode(payload.firstName);
-
-  // 🔹 5. Save customer
+  // 🔹 4. Save customer
  // ❌ Never store plain password inside rawPayload
 const cleanPayload = { ...payload };
 delete cleanPayload.password;
 
-const savedCustomer = await createCustomerRepo({
+const savedCustomer = await createCustomerRepo({ // The pre-save hook will generate the referral code
   /* ===============================
      🔹 CORE DETAILS
   =============================== */
   userGroupId: payload.userGroupId,
   accountId: payload.accountId,
-  userName: newUserName, // Use generated username
+  userName: finalUserName, // Use determined username
   phoneNumber: payload.phoneNumber,
   emailId: payload.emailId,
   password: payload.password, // will hash if schema has pre-save hook
@@ -266,21 +267,13 @@ const savedCustomer = await createCustomerRepo({
   },
 
   /* ===============================
-     🔹 REFERRAL
-  =============================== */
-  referral: {
-    code: ownReferralCode,
-    referredCount: 0,
-  },
-
-  /* ===============================
      🔹 AUDIT
   =============================== */
   rawPayload: cleanPayload,
 });
 
 
-  // 🔹 6. Increase referrer count AFTER customer creation
+  // 🔹 5. Increase referrer count AFTER customer creation
   if (referrer) {
     await Customer.updateOne(
       { _id: referrer._id },
@@ -288,7 +281,7 @@ const savedCustomer = await createCustomerRepo({
     );
   }
 
-  // 🔹 7. Clean up local files
+  // 🔹 6. Clean up local files
   uploadedFilePaths.forEach(filePath => {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);

@@ -7,7 +7,7 @@ import { loginCustomer } from "../../controllers/Customer/customer.controller.js
 import { verifyAccessToken } from "../../middlewares/auth.middleware.js";
 import { verifyJWT,auth } from "../../middlewares/auth.middleware.js";
 import { allowRoles } from "../../middlewares/role.middleware.js";
-import { updateCustomerReferralCode } from "../../controllers/Customer/customer.controller.js";
+import { updateCustomerReferralCode,getAllCustomers,getSingleCustomer } from "../../controllers/Customer/customer.controller.js";
 import { getMyReferralCode,getProfileImage,updateProfileImage,deleteProfileImage } from "../../controllers/Customer/customer.controller.js";
 
 const router = express.Router();
@@ -42,7 +42,7 @@ router.post("/login", express.json(), upload.none(), loginCustomer);
 router.get("/me", verifyJWT, getMyProfile);
 
 router.patch(
-  "/customer/:customerId/referral",
+  "/customer/referral",
   verifyJWT,
   allowRoles(
     "SUPER_ADMIN",
@@ -78,6 +78,18 @@ router.delete(
   verifyJWT,
   auth("CUSTOMER"),
   deleteProfileImage
+);
+router.get(
+  "/customers",
+  verifyJWT,
+  allowRoles("SUPER_ADMIN", "ADMIN", "ADMIN_STAFF"),
+  getAllCustomers
+);
+router.get(
+  "/customers/:customerId",
+  verifyJWT,
+  allowRoles("SUPER_ADMIN", "ADMIN", "ADMIN_STAFF"),
+  getSingleCustomer
 );
 
 

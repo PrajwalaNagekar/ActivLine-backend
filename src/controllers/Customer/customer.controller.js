@@ -124,40 +124,44 @@ export const getMyProfile = asyncHandler(async (req, res) => {
 });
 
 export const updateCustomerReferralCode = asyncHandler(async (req, res) => {
-  const { customerId } = req.params;
-  const { referralCode } = req.body;
+  const role = req.user.role;
 
-  if (!referralCode) {
-    throw new ApiError(400, "Referral code is required");
+  if (role === "CUSTOMER") {
+    throw new ApiError(403, "Access denied");
   }
 
-  // Check uniqueness
-  const exists = await Customer.findOne({
-    "referral.code": referralCode,
-    _id: { $ne: customerId }
-  });
+  const { userName, referralCode, message } = req.body;
 
-  if (exists) {
-    throw new ApiError(409, "Referral code already in use");
-  }
+  const customer = await Customer.findOne({ userName });
 
-  const customer = await Customer.findById(customerId);
   if (!customer) {
     throw new ApiError(404, "Customer not found");
   }
 
-  customer.referral.code = referralCode;
+  // ❌ Block referral code editing
+  if (referralCode) {
+    throw new ApiError(403, "Referral code is auto-generated and cannot be edited");
+  }
+
+  // ✅ Allow message editing
+  if (message !== undefined) {
+    customer.referral.message = message;
+  }
+
   await customer.save();
 
   res.json({
     success: true,
-    message: "Referral code updated successfully",
+    message: "Referral message updated successfully",
     data: {
-      customerId,
-      referralCode
+      userName,
+      message
     }
   });
 });
+
+
+
 
 
 export const deleteCustomerReferralCode = asyncHandler(async (req, res) => {
@@ -190,10 +194,14 @@ export const getMyReferralCode = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: {
-      referralCode: customer.referral?.code || null
+      referralCode: customer.referral?.code || null,
+      message:
+        customer.referral?.message ||
+        "Invite your friends to ActivLine. They get $500 off, and you get 1 Month FREE!"
     }
   });
 });
+
 
 // controllers/Customer/customer.controller.js
 
@@ -230,4 +238,47 @@ export const deleteProfileImage = asyncHandler(async (req, res) => {
   res.status(200).json(
     ApiResponse.success(null, "Profile image deleted successfully")
   );
+});
+export const getAllCustomers = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const customers = await Customer.find()
+    .select("-password") // 🔐 hide password
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(Number(limit));
+
+  const totalCustomers = await Customer.countDocuments();
+
+  res.status(200).json({
+    success: true,
+    message: "Customers fetched successfully",
+    data: customers,
+    pagination: {
+      total: totalCustomers,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(totalCustomers / limit),
+    },
+  });
+});
+
+
+export const getSingleCustomer = asyncHandler(async (req, res) => {
+  const { customerId } = req.params;
+
+  const customer = await Customer.findById(customerId)
+    .select("-password"); // 🔐 hide password
+
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Customer fetched successfully",
+    data: customer,
+  });
 });

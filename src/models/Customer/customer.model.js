@@ -199,6 +199,12 @@ const customerSchema = new mongoose.Schema(
       type: String,
     },
 
+    // 🔹 Notification Tokens (Multi-device support)
+    fcmTokens: {
+      type: [String],
+      default: [],
+    },
+
     /* =================================
        🔹 FILES
     ================================= */
@@ -222,16 +228,27 @@ const customerSchema = new mongoose.Schema(
     /* =================================
        🔹 REFERRAL
     ================================= */
-    referral: {
-      code: {
-        type: String,
-        index: true,
-      },
-      referredCount: {
-        type: Number,
-        default: 0,
-      },
-    },
+ referral: {
+  code: {
+    type: String,
+    index: true,
+    unique: true,   // optional but recommended
+    sparse: true,   // important if using unique
+    trim: true,
+  },
+  referredCount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  message: {        // ✅ ADDED FIELD
+    type: String,
+    default: null,
+    trim: true,
+  },
+},
+
+
 
     /* =================================
        🔹 AUDIT
@@ -245,11 +262,41 @@ const customerSchema = new mongoose.Schema(
 
 // 🔐 Hash password before saving
 customerSchema.pre("save", async function () {
-  if (!this.isModified("password")) {
-    return;
+  // 🔹 1. Hash Password (if modified)
+  if (this.isModified("password")) {
+    this.password = await bcrypt.hash(this.password, 10);
   }
-  this.password = await bcrypt.hash(this.password, 10);
+
+  // 🔹 2. Generate Referral Code (Only if new & has firstName)
+  if (this.isNew && this.firstName) {
+    const firstName = this.firstName
+      .toUpperCase()
+      .replace(/\s+/g, "");
+
+    const lastCustomer = await mongoose.models.Customer.findOne({
+      "referral.code": new RegExp(`^${firstName}`)
+    }).sort({ "referral.code": -1 });
+
+    let nextNumber = 1;
+
+    if (lastCustomer?.referral?.code) {
+      const lastCode = lastCustomer.referral.code;
+      const lastNumber = parseInt(lastCode.replace(firstName, ""), 10);
+      nextNumber = lastNumber + 1;
+    }
+
+    const paddedNumber = String(nextNumber).padStart(4, "0");
+
+    this.referral = {
+      code: `${firstName}${paddedNumber}`,
+      referredCount: 0,
+      message: null
+    };
+  }
+
 });
+
+
 
 // 🔍 Compare password method
 customerSchema.methods.comparePassword = async function (enteredPassword) {

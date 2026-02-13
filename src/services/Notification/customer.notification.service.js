@@ -1,7 +1,5 @@
-// services/Notification/customer.notification.service.js
-
 import Notification from "../../models/Notification/customernotification.model.js";
-import Customer from "../../models/Customer/customer.model.js";
+import CustomerSession from "../../models/Customer/customerLogin.model.js";
 import { sendPushNotification } from "./customerfirebase.service.js";
 
 export const notifyCustomer = async ({
@@ -11,7 +9,7 @@ export const notifyCustomer = async ({
   type = "SYSTEM",
   data = {},
 }) => {
-  // 🔹 Save in DB
+  // 🔹 1️⃣ Save notification in DB
   const notification = await Notification.create({
     customerId,
     title,
@@ -20,15 +18,37 @@ export const notifyCustomer = async ({
     data,
   });
 
-  // 🔹 Get customer FCM token
-  const customer = await Customer.findById(customerId).select("fcmToken");
+  // 🔹 2️⃣ Fetch ALL active device tokens
+  const sessions = await CustomerSession.find({
+    customerId,
+    fcmToken: { $ne: null },
+  }).select("fcmToken");
 
-  if (customer?.fcmToken) {
-    await sendPushNotification({
-      fcmToken: customer.fcmToken,
-      title,
-      body: message,
-    });
+  if (!sessions.length) {
+    return notification; // No devices logged in
+  }
+
+  // 🔹 3️⃣ Send notification to ALL devices
+  for (const session of sessions) {
+    try {
+      await sendPushNotification({
+        fcmToken: session.fcmToken,
+        title,
+        body: message,
+      });
+    } catch (error) {
+      console.error("❌ FCM Send Error:", error.message);
+
+      // 🔥 4️⃣ Auto cleanup invalid tokens
+      if (
+        error.code === "messaging/registration-token-not-registered"
+      ) {
+        await CustomerSession.updateOne(
+          { _id: session._id },
+          { $set: { fcmToken: null } }
+        );
+      }
+    }
   }
 
   return notification;
