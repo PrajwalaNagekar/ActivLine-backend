@@ -1,11 +1,10 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import routes from "./src/routes/index.route.js";
 import ApiError from "./src/utils/ApiError.js";
 import cookieParser from "cookie-parser";
 import path from "path";
-dotenv.config();
 const app = express();
 
 app.use(
@@ -125,7 +124,7 @@ app.use((err, req, res, next) => {
     if (err.name === "TokenExpiredError" || err.name === "JsonWebTokenError") {
         return res.status(401).json({
             success: false,
-            message: "Invalid or expired access token",
+            message: "401 Invalid or expired access token",
             data: null,
         });
     }

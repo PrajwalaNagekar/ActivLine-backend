@@ -12,3 +12,4 @@ export const createUser = asyncHandler(async (req, res) => {
     ApiResponse.success(user, "User created successfully")
   );
 });
+

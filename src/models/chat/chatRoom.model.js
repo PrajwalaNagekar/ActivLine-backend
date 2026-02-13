@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 
 const chatRoomSchema = new mongoose.Schema(
   {
+    _id: String,
    customer: {
   type: mongoose.Schema.Types.ObjectId,
   ref: "Customer",   // 🔥 FIX

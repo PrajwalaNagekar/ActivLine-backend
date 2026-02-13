@@ -5,13 +5,21 @@ import { loginUser } from "../../services/auth/login.service.js";
 import { createActivityLog } from "../../services/ActivityLog/activityLog.service.js";
 
 export const login = asyncHandler(async (req, res) => {
-  const { email, password, fcmToken } = req.body;
+  let { email, password, fcmToken, deviceId } = req.body;
 
   if (!email || !password) {
     throw new ApiError(400, "Email and password are required");
   }
 
-  const result = await loginUser({ email, password, fcmToken });
+  // ✅ Auto-generate FCM Token & Device ID if missing (Helper for Postman/Testing)
+  if (!fcmToken) {
+    fcmToken = "mock_token_" + Date.now();
+  }
+  if (!deviceId) {
+    deviceId = "mock_device_" + Date.now();
+  }
+
+  const result = await loginUser({ email, password, fcmToken, deviceId });
 
   await createActivityLog({
     req,

@@ -5,6 +5,7 @@ import ApiResponse from "../../utils/ApiReponse.js";
 import { asyncHandler } from "../../utils/AsyncHandler.js";
 import { createActivityLog } from "../../services/ActivityLog/activityLog.service.js";
 import { assignStaffSchema,updateTicketStatusSchema } from "../../validations/chat/chat.validation.js";
+import { notifyStaffOnTicketAssign } from "../../services/Notification/staff.notification.service.js";
 export const assignStaff = asyncHandler(async (req, res) => {
   const { error } = assignStaffSchema.validate(req.body);
   if (error) throw error;
@@ -22,6 +23,12 @@ export const assignStaff = asyncHandler(async (req, res) => {
     metadata: {
       staffId: req.body.staffId,
     },
+  });
+    // 🔔 SEND STAFF NOTIFICATION
+  await notifyStaffOnTicketAssign({
+    staffId: req.body.staffId,
+    room,
+    assignedBy: req.user,
   });
   res.json(ApiResponse.success(room, "Staff assigned successfully"));
 });

@@ -1,13 +1,12 @@
-import dotenv from 'dotenv';
+import "dotenv/config";
 import http from 'http';
+import './src/config/firebase.js'; // Ensure Firebase is initialized first
 // import { Server } from 'socket.io';
 import connectDB from './src/db/index.js';
 import app from './app.js';
 import Admin from './src/models/auth/auth.model.js';
 import Customer from './src/models/Customer/user.model.js';
 import { initSocket } from './src/socket/index.js';
-
-dotenv.config();
 
 const startServer = async () => {
     try {

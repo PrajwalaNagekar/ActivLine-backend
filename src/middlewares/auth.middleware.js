@@ -190,7 +190,7 @@ export const verifyAccessToken = (req, res, next) => {
   } catch (err) {
     return res.status(401).json({
       success: false,
-      message: "Invalid or expired access token",
+      message: "401 Invalid or expired access token",
     });
   }
 };
@@ -249,3 +249,17 @@ export const verifyCustomerJWT = asyncHandler(async (req, _, next) => {
 
 //   next();
 // };
+export const auth = (...allowedRoles) => {
+  return asyncHandler(async (req, _res, next) => {
+    await verifyJWT(req, _res, () => {});
+
+    if (
+      allowedRoles.length &&
+      !allowedRoles.includes(req.user.role)
+    ) {
+      throw new ApiError(403, "Access denied");
+    }
+
+    next();
+  });
+};

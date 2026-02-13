@@ -1,13 +1,100 @@
 import { asyncHandler } from "../../utils/AsyncHandler.js";
 import { ApiResponse } from "../../utils/ApiReponse.js";
+import ApiError from "../../utils/ApiError.js";
+import Notification from "../../models/Notification/notification.model.js";
 import { getNotificationsForRole } from "../../services/Notification/notification.service.js";
 
+/**
+ * GET notifications for logged-in user role
+ */
 export const getNotifications = asyncHandler(async (req, res) => {
-  const role = req.user.role; // admin | super_admin | staff
+  const { _id, role } = req.user;
 
-  const notifications = await getNotificationsForRole(role);
+  const notifications = await Notification.find({
+    recipientRole: role,          // ✅ role-based filter
+    recipientUser: _id,           // ✅ user-specific filter (important)
+  }).sort({ createdAt: -1 });
 
   res.status(200).json(
-    ApiResponse.success(notifications, "Notifications fetched successfully")
+    ApiResponse.success(
+      notifications,
+      "Notifications fetched successfully"
+    )
   );
 });
+
+
+/**
+ * MARK single notification as read
+ */
+export const markNotificationAsRead = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const notification = await Notification.findById(id);
+
+  if (!notification) {
+    throw new ApiError(404, "Notification not found");
+  }
+
+  notification.isRead = true;
+  await notification.save();
+
+  res.status(200).json(
+    ApiResponse.success(notification, "Notification marked as read")
+  );
+});
+
+/**
+ * DELETE single notification
+ */
+export const deleteSingleNotification = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const notification = await Notification.findById(id);
+
+  if (!notification) {
+    throw new ApiError(404, "Notification not found");
+  }
+
+  await notification.deleteOne();
+
+  res.status(200).json(
+    ApiResponse.success(null, "Notification deleted successfully")
+  );
+});
+
+/**
+ * DELETE all notifications for user role
+ */
+export const deleteAllNotifications = asyncHandler(async (req, res) => {
+  const role = req.user.role;
+
+  await Notification.deleteMany({
+    roles: { $in: [role] },
+  });
+
+  res.status(200).json(
+    ApiResponse.success(null, "All notifications deleted successfully")
+  );
+});
+
+/**
+ * 🔔 GET ADMIN UNREAD COUNT
+ */
+/**
+ * 🔔 GET UNREAD COUNT (ADMIN / STAFF)
+ * GET /api/notifications/unread-count
+ */
+export const getUnreadNotificationCount = async (req, res) => {
+  const count = await Notification.countDocuments({
+    recipientUser: req.user._id,
+    isRead: false,
+  });
+
+  res.json({
+    success: true,
+    data: {
+      unreadCount: count,
+    },
+  });
+};

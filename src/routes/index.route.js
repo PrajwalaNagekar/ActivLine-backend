@@ -9,7 +9,9 @@ import staffIndex from "./staff/index.js";
 import notificationRoutes from "./Notification/notification.routes.js";
 import dashboardRoutes from "./admin/Dashboard/dashboard.routes.js"; 
 import locationRoutes from "./customer/location.routes.js";
+
 import logsIndex from "./ActivityLog/index.js";// ✅ ADD THIS
+// import staffNotificationRoutes from "./Notification/staffnotification.routes.js";
 const router = Router();
 
 router.use("/auth", authRoutes);   // 🔐 LOGIN HERE
@@ -22,6 +24,7 @@ router.use("/staff", staffIndex);
 router.use("/dashboard", dashboardRoutes);
 router.use("/location", locationRoutes);
 router.use("/notifications", notificationRoutes); 
+// router.use("/", staffNotificationRoutes);
 router.use("/logs", logsIndex); 
 // future:
 // router.use("/staff", staffRoutes);

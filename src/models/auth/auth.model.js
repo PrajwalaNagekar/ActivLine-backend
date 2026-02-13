@@ -13,11 +13,14 @@ const adminSchema = new mongoose.Schema({
   default: "ADMIN",
 },
 
-   fcmToken: {
-      type: String,
-      default: null, // 🔥 future-ready
+  fcmTokens: [
+    {
+      token: String,
+      deviceId: String,
+      lastUsedAt: Date,
     },
-    
+  ],
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
   refreshToken: { type: String, default: null },
   resetOTP: { type: String, default: null },
   resetOTPExpiry: { type: Date, default: null },

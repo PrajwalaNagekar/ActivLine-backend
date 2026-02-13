@@ -6,7 +6,7 @@ import { generateOtp, verifyOtp } from "../../services/customer/otp.service.js";
 import Customer from "../../models/Customer/customer.model.js";
 
 export const editUserProfile = asyncHandler(async (req, res) => {
-  const { userId, email, phoneNumber } = req.body;
+  const { userId, email, phoneNumber, password } = req.body;
 
   if (!userId) {
     throw new ApiError(400, "userId is required");
@@ -56,6 +56,11 @@ export const editUserProfile = asyncHandler(async (req, res) => {
     updates.phoneNumber = phoneNumber;
   }
 
+  // ✅ Add password to updates if provided
+  if (password) {
+    updates.password = password;
+  }
+
   // ❌ Nothing changed
   if (Object.keys(updates).length === 0) {
     return res.json({
@@ -80,12 +85,6 @@ export const editUserProfile = asyncHandler(async (req, res) => {
     message: "OTP sent to your registered email and mobile number"
   });
 });
-
-
-
-
-
-
 
 
 export const verifyOtpAndUpdate = asyncHandler(async (req, res) => {
@@ -121,8 +120,18 @@ export const verifyOtpAndUpdate = asyncHandler(async (req, res) => {
 
   if (updates.email) payload.emailId = updates.email;
   if (updates.phoneNumber) payload.phoneNumber = updates.phoneNumber;
+  if (updates.password) payload.password = updates.password;
 
   await updateUserInActivline(payload);
+
+  // ✅ Update Local Database (MongoDB)
+  const customer = await Customer.findOne({ activlineUserId: userId });
+  if (customer) {
+    if (updates.email) customer.emailId = updates.email;
+    if (updates.phoneNumber) customer.phoneNumber = updates.phoneNumber;
+    if (updates.password) customer.password = updates.password; // pre-save hook will hash this
+    await customer.save();
+  }
 
   record.verified = true;
   await record.save();

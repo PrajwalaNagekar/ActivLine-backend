@@ -87,7 +87,7 @@ const attachmentSchema = new mongoose.Schema(
 const chatMessageSchema = new mongoose.Schema(
   {
     roomId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       ref: "ChatRoom",
       required: true,
     },

@@ -1,54 +1,18 @@
-// import ApiError from "../../utils/ApiError.js";
-// import Admin from "../../models/auth/auth.model.js";
-// import StaffStatus from "../../models/staff/Staff.model.js";
-
-
-
-// export const loginUser = async ({ email, password, fcmToken }) => {
-//   const user = await Admin.findOne({ email }).select("+password");
-
-//   if (!user) throw new ApiError(401, "Invalid credentials");
-
-//   if (user.role === "ADMIN_STAFF") {
-//     const staffStatus = await StaffStatus.findOne({ staffId: user._id });
-//     if (staffStatus && (staffStatus.status === "TERMINATED" || staffStatus.status === "DISABLED")) {
-//       throw new ApiError(403, "Your account has been " + staffStatus.status.toLowerCase());
-//     }
-//   }
-
-//   const isMatch = await user.comparePassword(password);
-//   if (!isMatch) throw new ApiError(401, "Invalid credentials");
-
-//   const accessToken = user.generateAccessToken(); // 🔥 role inside JWT
-//   const refreshToken = user.generateRefreshToken();
-
-//   user.refreshToken = refreshToken;
-//   if (fcmToken) user.fcmToken = fcmToken;
-
-//   await user.save({ validateBeforeSave: false });
-
-//   return {
-//     user: {
-//       id: user._id,
-//       name: user.name,
-//       email: user.email,
-//       role: user.role, // 🔥 role returned
-//     },
-//     accessToken,
-//     refreshToken,
-//   };
-// };
-
 
 import ApiError from "../../utils/ApiError.js";
 import Admin from "../../models/auth/auth.model.js";
 import StaffStatus from "../../models/staff/Staff.model.js";
 
-export const loginUser = async ({ email, password, fcmToken }) => {
+export const loginUser = async ({
+  email,
+  password,
+  fcmToken,
+  deviceId, // 👈 NEW (very important)
+}) => {
   const user = await Admin.findOne({ email }).select("+password");
   if (!user) throw new ApiError(401, "Invalid credentials");
 
-  // 🔐 PASSWORD CHECK FIRST
+  // 🔐 PASSWORD CHECK
   const isMatch = await user.comparePassword(password);
   if (!isMatch) throw new ApiError(401, "Invalid credentials");
 
@@ -80,7 +44,29 @@ export const loginUser = async ({ email, password, fcmToken }) => {
   const refreshToken = user.generateRefreshToken();
 
   user.refreshToken = refreshToken;
-  if (fcmToken) user.fcmToken = fcmToken;
+
+  // 🔔 FCM TOKEN HANDLING (MULTI-DEVICE)
+  if (fcmToken && deviceId) {
+    // ✅ Safety: Ensure array exists
+    if (!user.fcmTokens) user.fcmTokens = [];
+
+    const existingDevice = user.fcmTokens.find(
+      (d) => d.deviceId === deviceId
+    );
+
+    if (existingDevice) {
+      // 🔁 Same device → update token & timestamp
+      existingDevice.token = fcmToken;
+      existingDevice.lastUsedAt = new Date();
+    } else {
+      // ➕ New device
+      user.fcmTokens.push({
+        token: fcmToken,
+        deviceId,
+        lastUsedAt: new Date(),
+      });
+    }
+  }
 
   await user.save({ validateBeforeSave: false });
 
@@ -90,7 +76,9 @@ export const loginUser = async ({ email, password, fcmToken }) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      fcmTokens: user.fcmTokens,
     },
+    currentFcmToken: fcmToken,
     accessToken,
     refreshToken,
   };

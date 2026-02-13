@@ -14,33 +14,9 @@ import ApiError from "../../utils/ApiError.js";
 import FormData from "form-data";
 import fs from "fs";
 import activlineClient from "../../external/activline/activline.client.js";
+import { uploadOnCloudinary,deleteFromCloudinary } from "../../utils/cloudinary.js";
 // import { createCustomer } from "../../repositories/Customer/customer.repository.js";
 import Customer from "../../models/Customer/customer.model.js";
-// export const createCustomer = async (payload) => {
-//   const existing = await CustomerRepo.findByMobile(payload.mobile);
-//   if (existing) {
-//     throw new ApiError(409, "Mobile already registered");
-//   }
-
-//   const customerId = "ACT" + Date.now();
-
-//   const customer = await CustomerRepo.createCustomer({
-//     ...payload,
-//     customerId,
-//   });
-
-//   // ✅ THIS OBJECT CONTROLS THE RESPONSE
-//   return {
-//     _id: customer._id,
-//     customerId: customer.customerId,
-//     fullName: customer.fullName,
-//     mobile: customer.mobile,
-//     email: customer.email,
-//     role: customer.role,          // ✅ MUST BE HERE
-//     createdAt: customer.createdAt,
-//   };
-// };
-
 
 
 
@@ -96,26 +72,52 @@ export const getMessagesByRoom = async (roomId) => {
 
 
 export const createCustomerService = async (payload, files) => {
+  const uploadedFilePaths = [];
+  // 🔹 1. Determine Username (Use provided or generate)
+  let finalUserName = payload.userName;
+
+  if (!finalUserName) {
+    let nextUserNumber = 1;
+    // Find the last customer to determine the next user number
+    const lastCustomer = await Customer.findOne({}, { userName: 1 })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (lastCustomer && lastCustomer.userName && lastCustomer.userName.startsWith("AL-")) {
+      const lastNumberStr = lastCustomer.userName.split("-")[1];
+      if (lastNumberStr) {
+        const lastNumber = parseInt(lastNumberStr, 10);
+        if (!isNaN(lastNumber)) {
+          nextUserNumber = lastNumber + 1;
+        }
+      }
+    }
+    finalUserName = `AL-${String(nextUserNumber).padStart(6, "0")}`;
+  }
+
   const formData = new FormData();
 
-  Object.entries(payload).forEach(([key, value]) => {
+  // Use the determined username for Activline and local DB
+  Object.entries({ ...payload, userName: finalUserName }).forEach(([key, value]) => {
     if (value !== undefined && value !== "") {
       formData.append(key, value);
     }
   });
 
   if (files?.idFile) {
+    uploadedFilePaths.push(files.idFile[0].path);
     formData.append("idFile", fs.createReadStream(files.idFile[0].path));
   }
 
   if (files?.addressFile) {
+    uploadedFilePaths.push(files.addressFile[0].path);
     formData.append(
       "addressFile",
       fs.createReadStream(files.addressFile[0].path)
     );
   }
 
-  // 🔹 1. Create user in Activline (UNCHANGED)
+  // 🔹 2. Create user in Activline
   const activlineData = await activlineClient.post(
     "/add_user",
     formData,
@@ -129,7 +131,31 @@ export const createCustomerService = async (payload, files) => {
     );
   }
 
-  // 🔹 2. Validate referral code if user used one
+  // 🔹 NEW: Upload all files to Cloudinary
+  const documentUrls = {};
+  const uploadPromises = [];
+  const fileTypes = ['idFile', 'addressFile', 'cafFile', 'reportFile', 'signFile', 'profilePicFile'];
+
+  for (const fileType of fileTypes) {
+    if (files?.[fileType]?.[0]?.path) {
+      const filePath = files[fileType][0].path;
+      if (!uploadedFilePaths.includes(filePath)) {
+        uploadedFilePaths.push(filePath);
+      }
+      uploadPromises.push(
+        uploadOnCloudinary(filePath).then(result => {
+          if (result) {
+            documentUrls[fileType] = result.secure_url;
+          }
+        })
+      );
+    }
+  }
+
+  // Wait for all Cloudinary uploads to finish
+  await Promise.all(uploadPromises);
+
+  // 🔹 3. Validate referral code if user used one
   let referrer = null;
   if (payload.referralCode) {
     referrer = await Customer.findOne({
@@ -141,45 +167,111 @@ export const createCustomerService = async (payload, files) => {
     }
   }
 
-  // 🔹 3. Generate OWN referral code
-  const ownReferralCode = await generateReferralCode(payload.firstName);
-
   // 🔹 4. Save customer
-  const savedCustomer = await createCustomerRepo({
-    userGroupId: payload.userGroupId,
-    accountId: payload.accountId,
-    userName: payload.userName,
-    phoneNumber: payload.phoneNumber,
-    emailId: payload.emailId,
-    userState: payload.userState,
-    userType: payload.userType,
-    activationDate: payload.activationDate,
+ // ❌ Never store plain password inside rawPayload
+const cleanPayload = { ...payload };
+delete cleanPayload.password;
 
-    firstName: payload.firstName,
-    lastName: payload.lastName,
+const savedCustomer = await createCustomerRepo({ // The pre-save hook will generate the referral code
+  /* ===============================
+     🔹 CORE DETAILS
+  =============================== */
+  userGroupId: payload.userGroupId,
+  accountId: payload.accountId,
+  userName: finalUserName, // Use determined username
+  phoneNumber: payload.phoneNumber,
+  emailId: payload.emailId,
+  password: payload.password, // will hash if schema has pre-save hook
+  userState: payload.userState,
+  userType: payload.userType,
+  activationDate: payload.activationDate,
+  expirationDate: payload.expirationDate,
+  customActivationDate: payload.customActivationDate,
+  customExpirationDate: payload.customExpirationDate,
 
-    address: {
-      line1: payload.address_line1,
-      city: payload.address_city,
-      pin: payload.address_pin,
-      state: payload.address_state,
-      country: payload.address_country,
-    },
+  /* ===============================
+     🔹 USER DETAILS
+  =============================== */
+  firstName: payload.firstName,
+  lastName: payload.lastName,
+  altPhoneNumber: payload.altPhoneNumber,
+  altEmailId: payload.altEmailId,
 
-    activlineUserId: activlineData?.message?.userId?.toString(),
+  /* ===============================
+     🔹 CUSTOMER ADDRESS
+  =============================== */
+  address: {
+    line1: payload.address_line1,
+    line2: payload.address_line2,
+    city: payload.address_city,
+    pin: payload.address_pin,
+    state: payload.address_state,
+    country: payload.address_country,
+  },
 
-    documents: {
-      idFile: files?.idFile?.[0]?.filename,
-      addressFile: files?.addressFile?.[0]?.filename,
-    },
+  /* ===============================
+     🔹 INSTALLATION ADDRESS
+  =============================== */
+  installationAddress: {
+    line1: payload.installation_address_line1,
+    line2: payload.installation_address_line2,
+    city: payload.installation_address_city,
+    pin: payload.installation_address_pin,
+    state: payload.installation_address_state,
+    country: payload.installation_address_country,
+  },
 
-    referral: {
-      code: ownReferralCode,
-      referredCount: 0
-    },
+  /* ===============================
+     🔹 BILLING / OVERRIDE
+  =============================== */
+  overridePriceEnable: payload.overridePriceEnable,
+  overrideAmount: payload.overrideAmount,
+  overrideAmountBasedOn: payload.overrideAmountBasedOn,
+  createBilling: payload.createBilling,
 
-    rawPayload: payload,
-  });
+  /* ===============================
+     🔹 LOCATION
+  =============================== */
+  locationDetailsNotImport: payload.location_details_not_import,
+  collectionAreaImport: payload.collection_area_import,
+  collectionStreetImport: payload.collection_street_import,
+  collectionBlockImport: payload.collection_block_import,
+
+  /* ===============================
+     🔹 AUTH FLAGS
+  =============================== */
+  disableUserIpAuth: payload.disableUserIpAuth,
+  disableUserMacAuth: payload.disableUserMacAuth,
+  disableUserHotspotAuth: payload.disableUserHotspotAuth,
+
+  /* ===============================
+     🔹 CAF
+  =============================== */
+  cafNum: payload.caf_num,
+
+  /* ===============================
+     🔹 ACTIVLINE ID
+  =============================== */
+  activlineUserId: activlineData?.message?.userId?.toString(),
+
+  /* ===============================
+     🔹 DOCUMENTS
+  =============================== */
+  documents: {
+    idFile: documentUrls.idFile || null,
+    addressFile: documentUrls.addressFile || null,
+    cafFile: documentUrls.cafFile || null,
+    reportFile: documentUrls.reportFile || null,
+    signFile: documentUrls.signFile || null,
+    profilePicFile: documentUrls.profilePicFile || null,
+  },
+
+  /* ===============================
+     🔹 AUDIT
+  =============================== */
+  rawPayload: cleanPayload,
+});
+
 
   // 🔹 5. Increase referrer count AFTER customer creation
   if (referrer) {
@@ -189,39 +281,15 @@ export const createCustomerService = async (payload, files) => {
     );
   }
 
+  // 🔹 6. Clean up local files
+  uploadedFilePaths.forEach(filePath => {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  });
+
   return savedCustomer;
 };
-
-
-// const buildCustomerUpdateData = (payload) => {
-//   const update = {};
-
-//   // Simple fields
-//   if (payload.userName) update.userName = payload.userName;
-//   if (payload.emailId) update.emailId = payload.emailId;
-//   if (payload.userType) update.userType = payload.userType;
-//   if (payload.activationDate) update.activationDate = payload.activationDate;
-//   if (payload.firstName) update.firstName = payload.firstName;
-//   if (payload.lastName) update.lastName = payload.lastName;
-
-//   // Address mapping
-//   if (
-//     payload.address_line1 ||
-//     payload.address_city ||
-//     payload.address_pin ||
-//     payload.address_state ||
-//     payload.address_country
-//   ) {
-//     update.address = {};
-//     if (payload.address_line1) update.address.line1 = payload.address_line1;
-//     if (payload.address_city) update.address.city = payload.address_city;
-//     if (payload.address_pin) update.address.pin = payload.address_pin;
-//     if (payload.address_state) update.address.state = payload.address_state;
-//     if (payload.address_country) update.address.country = payload.address_country;
-//   }
-
-//   return update;
-// };
 
 const buildCustomerUpdateData = (payload) => {
   const update = {};
@@ -494,5 +562,153 @@ export const getMyProfileService = async (userId) => {
     throw new ApiError(404, "Customer profile not found");
   }
 
-  return customer; // 🔥 return FULL document
+  return {
+    _id: customer._id,
+
+    /* ===============================
+       🔹 BASIC INFO
+    =============================== */
+    userGroupId: customer.userGroupId,
+    accountId: customer.accountId,
+    userName: customer.userName,
+    phoneNumber: customer.phoneNumber,
+    emailId: customer.emailId,
+    userType: customer.userType,
+
+    /* ===============================
+       🔹 NAME DETAILS
+    =============================== */
+    firstName: customer.firstName,
+    lastName: customer.lastName,
+
+    /* ===============================
+       🔹 PRIMARY ADDRESS
+    =============================== */
+    address: customer.address
+      ? {
+          line1: customer.address.line1,
+          line2: customer.address.line2,
+          city: customer.address.city,
+          pin: customer.address.pin,
+          state: customer.address.state,
+          country: customer.address.country,
+        }
+      : undefined,
+
+    /* ===============================
+       🔹 INSTALLATION ADDRESS
+    =============================== */
+    installationAddress: customer.installationAddress
+      ? {
+          line1: customer.installationAddress.line1,
+          line2: customer.installationAddress.line2,
+          city: customer.installationAddress.city,
+          pin: customer.installationAddress.pin,
+          state: customer.installationAddress.state,
+          country: customer.installationAddress.country,
+        }
+      : undefined,
+
+    /* ===============================
+       🔹 ACTIVLINE
+    =============================== */
+    activlineUserId: customer.activlineUserId,
+
+    /* ===============================
+       🔹 PROFILE IMAGE
+    =============================== */
+    profilePicFile: customer.documents?.profilePicFile,
+
+    /* ===============================
+       🔹 STATUS & REFERRAL
+    =============================== */
+    status: customer.status,
+    referral: customer.referral || {
+      code: undefined,
+      referredCount: 0,
+    },
+
+    /* ===============================
+       🔹 CUSTOM DATES
+    =============================== */
+    customActivationDate: customer.customActivationDate,
+    customExpirationDate: customer.customExpirationDate,
+
+    /* ===============================
+       🔹 TIMESTAMPS
+    =============================== */
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt,
+  };
+};
+
+// services/Customer/customer.service.js
+
+
+export const getProfileImageService = async (userId) => {
+  const customer = await Customer.findById(userId).select("documents.profilePicFile");
+
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  return {
+    profilePicFile: customer.documents?.profilePicFile || null,
+  };
+};
+
+export const updateProfileImageService = async (userId, file) => {
+  const customer = await Customer.findById(userId);
+
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  // 🔹 Upload new image
+  const uploaded = await uploadOnCloudinary(file.path);
+
+  if (!uploaded) {
+    throw new ApiError(500, "Cloudinary upload failed");
+  }
+
+  // 🔹 Delete old image (if exists)
+  const oldImage = customer.documents?.profilePicFile;
+
+  if (oldImage) {
+    await deleteFromCloudinary(oldImage);
+  }
+
+  // 🔹 Update DB
+  customer.documents.profilePicFile = uploaded.secure_url;
+  await customer.save();
+
+  // 🔹 Cleanup local file
+  if (fs.existsSync(file.path)) {
+    fs.unlinkSync(file.path);
+  }
+
+  return {
+    profilePicFile: uploaded.secure_url,
+  };
+};
+
+export const deleteProfileImageService = async (userId) => {
+  const customer = await Customer.findById(userId);
+
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  const oldImage = customer.documents?.profilePicFile;
+
+  if (!oldImage) {
+    throw new ApiError(400, "No profile image to delete");
+  }
+
+  // 🔹 Delete from Cloudinary
+  await deleteFromCloudinary(oldImage);
+
+  // 🔹 Remove from DB
+  customer.documents.profilePicFile = null;
+  await customer.save();
 };

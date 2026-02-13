@@ -5,19 +5,24 @@ import { validate } from "../../middlewares/validate.middleware.js";
 import { createCustomerSchema } from "../../validations/Customer/customer.validation.js";
 import { loginCustomer } from "../../controllers/Customer/customer.controller.js";
 import { verifyAccessToken } from "../../middlewares/auth.middleware.js";
-import { verifyJWT } from "../../middlewares/auth.middleware.js";
+import { verifyJWT,auth } from "../../middlewares/auth.middleware.js";
 import { allowRoles } from "../../middlewares/role.middleware.js";
-import { updateCustomerReferralCode } from "../../controllers/Customer/customer.controller.js";
-import { getMyReferralCode } from "../../controllers/Customer/customer.controller.js";
+import { updateCustomerReferralCode,getAllCustomers,getSingleCustomer } from "../../controllers/Customer/customer.controller.js";
+import { getMyReferralCode,getProfileImage,updateProfileImage,deleteProfileImage } from "../../controllers/Customer/customer.controller.js";
 
 const router = express.Router();
 
 router.post(
   "/create",
-  upload.fields([
-    { name: "idFile", maxCount: 1 },
-    { name: "addressFile", maxCount: 1 },
-  ]),
+  
+ upload.fields([
+  { name: "idFile", maxCount: 1 },
+  { name: "addressFile", maxCount: 1 },
+  { name: "cafFile", maxCount: 1 },
+  { name: "reportFile", maxCount: 1 },
+  { name: "signFile", maxCount: 1 },
+  { name: "profilePicFile", maxCount: 1 },
+]),
   validate(createCustomerSchema), // ✅ validation after multer
   createCustomer
 );
@@ -37,7 +42,7 @@ router.post("/login", express.json(), upload.none(), loginCustomer);
 router.get("/me", verifyJWT, getMyProfile);
 
 router.patch(
-  "/customer/:customerId/referral",
+  "/customer/referral",
   verifyJWT,
   allowRoles(
     "SUPER_ADMIN",
@@ -55,5 +60,37 @@ router.get(
   allowRoles("CUSTOMER"),
   getMyReferralCode
 );
+
+// routes/customer.routes.js
+
+router.get("/me/profile-image", verifyJWT, auth("CUSTOMER"), getProfileImage);
+
+router.put(
+  "/me/profile-image",
+  verifyJWT,
+  auth("CUSTOMER"),
+  upload.single("profilePicFile"),
+  updateProfileImage
+);
+
+router.delete(
+  "/me/profile-image",
+  verifyJWT,
+  auth("CUSTOMER"),
+  deleteProfileImage
+);
+router.get(
+  "/customers",
+  verifyJWT,
+  allowRoles("SUPER_ADMIN", "ADMIN", "ADMIN_STAFF"),
+  getAllCustomers
+);
+router.get(
+  "/customers/:customerId",
+  verifyJWT,
+  allowRoles("SUPER_ADMIN", "ADMIN", "ADMIN_STAFF"),
+  getSingleCustomer
+);
+
 
 export default router;

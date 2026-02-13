@@ -2,9 +2,11 @@
 
 import * as ChatRoomRepo from "../../repositories/chat/chatRoom.repository.js";
 import * as ChatMsgRepo from "../../repositories/chat/chatMessage.repository.js";
+import ChatMessage from "../../models/chat/chatMessage.model.js";
 import { createActivityLog } from "../ActivityLog/activityLog.service.js";
 import ApiError from "../../utils/ApiError.js";
-
+import crypto from "crypto";
+import { notifyCustomer } from "../Notification/customer.notification.service.js";
 /**
  * ===============================
  * ADMIN → FETCH ALL ROOMS
@@ -33,8 +35,12 @@ export const openChatIfNotExists = async (req) => {
   const customerId = req.user._id;
   const { message } = req.body;
 
+  // ✅ Generate 10-digit numeric ID
+  const roomId = crypto.randomInt(1000000000, 10000000000).toString();
+
   // ✅ ALWAYS CREATE NEW ROOM (no reuse)
   const room = await ChatRoomRepo.createRoom({
+    _id: roomId,
     customer: customerId,
     status: "OPEN",
   });
@@ -46,6 +52,23 @@ export const openChatIfNotExists = async (req) => {
     module: "TICKET",
     description: "Customer created a new support ticket",
     targetId: room._id,
+  });
+
+  // ✅ Send default massage from SuperAdmin
+  const defaultMessage = "What can I Help you";
+  await ChatMsgRepo.saveMessage({
+    roomId: room._id,
+    senderId: "000000000000000000000000", // Placeholder ID for SuperAdmin
+    senderModel: "Admin",
+    senderRole: "SUPER_ADMIN",
+    message: defaultMessage,
+    messageType: "TEXT",
+    statusAtThatTime: room.status,
+  });
+
+  await ChatRoomRepo.updateRoomLastMessage(room._id, {
+    lastMessage: defaultMessage,
+    lastMessageAt: new Date(),
   });
 
   // ✅ SAVE FIRST MESSAGE (optional)
@@ -69,6 +92,80 @@ export const openChatIfNotExists = async (req) => {
   return room;
 };
 
+// import { notifyCustomer } from "../Notification/customer.notification.service.js";
+
+export const updateTicketStatus = async (req, roomId, newStatus) => {
+  const room = await ChatRoomRepo.findById(roomId);
+  if (!room) throw new ApiError(404, "Ticket not found");
+
+  const userRole = req.user.role;
+  const currentStatus = room.status;
+
+  const allowedTransitions = {
+    OPEN: ["IN_PROGRESS", "RESOLVED", "CLOSED", "OPEN"],
+    ASSIGNED: ["IN_PROGRESS", "RESOLVED", "CLOSED", "OPEN"],
+    IN_PROGRESS: ["RESOLVED", "CLOSED", "IN_PROGRESS"],
+    RESOLVED: ["CLOSED", "OPEN", "IN_PROGRESS", "RESOLVED"],
+    CLOSED: ["CLOSED"],
+  };
+
+  if (!allowedTransitions[currentStatus].includes(newStatus)) {
+    throw new ApiError(
+      400,
+      `Invalid status change from ${currentStatus} to ${newStatus}`
+    );
+  }
+
+  if (
+    ["IN_PROGRESS", "RESOLVED", "CLOSED"].includes(newStatus) &&
+    !["ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"].includes(userRole)
+  ) {
+    throw new ApiError(403, "You are not allowed to update ticket status");
+  }
+
+  const updatedRoom = await ChatRoomRepo.updateStatus(roomId, newStatus);
+
+  // 🔍 Find the first message sent by the customer
+  const firstCustomerMsg = await ChatMessage.findOne({
+    roomId,
+    senderRole: "CUSTOMER",
+  })
+    .sort({ createdAt: 1 })
+    .select("message");
+
+  let statusMessage = `Status changed to ${newStatus}`;
+
+  if (firstCustomerMsg?.message) {
+    statusMessage += `\n\nTicket: ${firstCustomerMsg.message}`;
+  }
+
+  await ChatMsgRepo.saveMessage({
+    roomId,
+    senderId: req.user._id,
+    senderModel: "Admin",
+    senderRole: req.user.role,
+    message: statusMessage,
+    messageType: "TEXT",
+    statusAtThatTime: newStatus,
+  });
+
+  // ✅ 🔔 NOTIFY CUSTOMER
+  if (["RESOLVED", "CLOSED"].includes(newStatus)) {
+    await notifyCustomer({
+      customerId: room.customer._id, // IMPORTANT
+      type: "TICKET",
+      roomId,
+        title: firstCustomerMsg?.message || "",
+      message:
+        newStatus === "RESOLVED"
+          ? "✅ Your issue has been resolved"
+          : "📌 Your ticket has been closed",
+      
+    });
+  }
+
+  return updatedRoom;
+};
 
 /**
  * ===============================
@@ -162,60 +259,30 @@ export const getAssignedRoomsForStaff = async (staffId) => {
   return ChatRoomRepo.getAssignedRoomsForStaff(staffId);
 };
 
-export const updateTicketStatus = async (req, roomId, newStatus) => {
-  const room = await ChatRoomRepo.findById(roomId);
-  if (!room) throw new ApiError(404, "Ticket not found");
 
-  const userRole = req.user.role;
-  const currentStatus = room.status;
-
-  // 🔐 STATUS TRANSITION RULES
-  const allowedTransitions = {
-    OPEN: ["IN_PROGRESS", "RESOLVED","CLOSED","OPEN"],
-    ASSIGNED: ["IN_PROGRESS", "RESOLVED","CLOSED","OPEN"],
-    IN_PROGRESS: ["RESOLVED","CLOSED","IN_PROGRESS"],
-    RESOLVED: ["CLOSED", "OPEN","IN_PROGRESS","RESOLVED"], // reopen allowed
-    CLOSED: ["CLOSED"],
-  };
-
-  if (!allowedTransitions[currentStatus].includes(newStatus)) {
-    throw new ApiError(
-      400,
-      `Invalid status change from ${currentStatus} to ${newStatus}`
-    );
-  }
-
-  // 🔐 RBAC
-  if (
-    ["IN_PROGRESS", "RESOLVED", "CLOSED"].includes(newStatus) &&
-    !["ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"].includes(userRole)
-  ) {
-    throw new ApiError(403, "You are not allowed to update ticket status");
-  }
-
-  const updatedRoom = await ChatRoomRepo.updateStatus(roomId, newStatus);
-await ChatMsgRepo.saveMessage({
-  roomId: roomId,
-  senderId: req.user._id,
-  senderModel: "Admin",
-  senderRole: req.user.role,
-  message: `Status changed to ${newStatus}`,
-  messageType: "TEXT",
-  statusAtThatTime: newStatus,
-});
-
-  // await createActivityLog({
-  //   req,
-  //   action: "UPDATE",
-  //   module: "TICKET",
-  //   description: `Updated ticket status to ${newStatus}`,
-  //   targetId: updatedRoom._id,
-  // });
-
-  return updatedRoom;
-};
 
 
 export const getMyChatRooms = async (customerId) => {
-  return ChatRoomRepo.findRoomsByCustomer(customerId);
+  const rooms = await ChatRoomRepo.findRoomsByCustomer(customerId);
+
+  const roomsWithData = await Promise.all(
+    rooms.map(async (room) => {
+      const roomData = room.toObject ? room.toObject() : room;
+
+      const firstMsg = await ChatMessage.findOne({
+        roomId: room._id,
+        senderRole: "CUSTOMER",
+      })
+        .sort({ createdAt: 1 })
+        .select("message")
+        .lean();
+
+      return {
+        ...roomData,
+        Title: firstMsg?.message || null,
+      };
+    })
+  );
+
+  return roomsWithData;
 };
