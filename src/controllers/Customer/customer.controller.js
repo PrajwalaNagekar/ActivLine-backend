@@ -8,10 +8,16 @@ import jwt from "jsonwebtoken";
 import { createCustomerService ,updateCustomerService,getMyProfileService,getProfileImageService,
   updateProfileImageService,
   deleteProfileImageService,} from "../../services/Customer/customer.service.js";
-
 import ApiError from "../../utils/ApiError.js";
 export const createCustomer = asyncHandler(async (req, res) => {
+  const logBody = { ...req.body };
+  if (logBody.password) logBody.password = "*****"; // 🔒 Mask password in logs
+  console.log("📝 [CREATE CUSTOMER] Request Body:", JSON.stringify(logBody, null, 2));
+  if (req.files) console.log("📂 [CREATE CUSTOMER] Files:", Object.keys(req.files));
+
   const customer = await createCustomerService(req.body, req.files);
+
+  console.log("✅ [CREATE CUSTOMER] Created:", customer.userName);
 
   res.status(201).json({
     success: true,
@@ -249,17 +255,47 @@ export const deleteProfileImage = asyncHandler(async (req, res) => {
   );
 });
 export const getAllCustomers = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
+  const { 
+    page = 1, 
+    limit = 10,
+    search = "",
+    status,
+    plan
+  } = req.query;
 
-  const skip = (page - 1) * limit;
+  const skip = (Number(page) - 1) * Number(limit);
 
-  const customers = await Customer.find()
-    .select("-password") // 🔐 hide password
+  // ✅ Build dynamic query
+  const query = {};
+
+  // 🔎 Search logic
+  if (search) {
+    query.$or = [
+      { firstName: { $regex: search, $options: "i" } },
+      { lastName: { $regex: search, $options: "i" } },
+      { phoneNumber: { $regex: search, $options: "i" } },
+      { emailId: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  // ✅ Status filter
+  if (status && status !== "All") {
+    query.status = status;
+  }
+
+  // ✅ Plan filter (userType)
+  if (plan && plan !== "All") {
+    query.userType = plan;
+  }
+
+  // ✅ Fetch customers
+  const customers = await Customer.find(query)
+    .select("-password")
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(Number(limit));
 
-  const totalCustomers = await Customer.countDocuments();
+  const totalCustomers = await Customer.countDocuments(query);
 
   res.status(200).json({
     success: true,
@@ -269,10 +305,11 @@ export const getAllCustomers = asyncHandler(async (req, res) => {
       total: totalCustomers,
       page: Number(page),
       limit: Number(limit),
-      totalPages: Math.ceil(totalCustomers / limit),
+      totalPages: Math.ceil(totalCustomers / Number(limit)),
     },
   });
 });
+
 
 
 export const getSingleCustomer = asyncHandler(async (req, res) => {

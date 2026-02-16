@@ -132,7 +132,7 @@ export const canManageAdminStaff = asyncHandler(async (req, _, next) => {
   }
 
   // ✅ ADMIN → full access (Check this FIRST so they can manage terminated staff)
-  if (req.user.role === "ADMIN") {
+  if (req.user.role === "ADMIN" || req.user.role === "SUPER_ADMIN") {
     return next();
   }
 

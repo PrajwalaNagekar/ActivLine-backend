@@ -3,6 +3,7 @@
 import * as ChatRoomRepo from "../../repositories/chat/chatRoom.repository.js";
 import * as ChatMsgRepo from "../../repositories/chat/chatMessage.repository.js";
 import ChatMessage from "../../models/chat/chatMessage.model.js";
+import ChatRoom from "../../models/chat/chatRoom.model.js";
 import { createActivityLog } from "../ActivityLog/activityLog.service.js";
 import ApiError from "../../utils/ApiError.js";
 import crypto from "crypto";
@@ -189,6 +190,12 @@ export const assignStaffToRoom = async (roomId, staffId) => {
  * ===============================
  */
 export const getMessagesByRoom = async (roomId) => {
+  const room = await ChatRoomRepo.findById(roomId);
+
+  if (!room) {
+    throw new ApiError(404, "Chat room not found");
+  }
+
   return ChatMsgRepo.getMessagesByRoom(roomId);
 };
 
@@ -224,24 +231,9 @@ export const canUserSendMessage = async ({
     return room;
   }
 
-  // ✅ Admin always allowed (NO assignedStaff check)
-  if (senderRole === "ADMIN" || senderRole === "SUPER_ADMIN") {
+  // ✅ Admin & Staff always allowed (NO assignedStaff check)
+  if (senderRole === "ADMIN" || senderRole === "SUPER_ADMIN" || senderRole === "ADMIN_STAFF") {
     return room;
-  }
-
-  // ✅ Admin staff only if assigned
-  if (senderRole === "ADMIN_STAFF") {
-    if (!room.assignedStaff) {
-      throw new ApiError(403, "Staff not assigned to this chat");
-    }
-
-    const assignedStaffId = room.assignedStaff._id
-      ? room.assignedStaff._id.toString()
-      : room.assignedStaff.toString();
-
-    if (assignedStaffId === senderId.toString()) {
-      return room;
-    }
   }
 
   // ❌ Everything else blocked
@@ -253,10 +245,14 @@ export const canUserSendMessage = async ({
  * ===============================
  */
 export const getRoomsForStaff = async (staffId) => {
-  return ChatRoomRepo.findByAssignedStaff(staffId);
+  return ChatRoom.find({ assignedStaff: staffId })
+    .populate("customer", "firstName lastName emailId userName")
+    .sort({ updatedAt: -1 });
 };
 export const getAssignedRoomsForStaff = async (staffId) => {
-  return ChatRoomRepo.getAssignedRoomsForStaff(staffId);
+  return ChatRoom.find({ assignedStaff: staffId })
+    .populate("customer", "firstName lastName emailId userName")
+    .sort({ updatedAt: -1 });
 };
 
 
