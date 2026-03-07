@@ -310,6 +310,68 @@ export const getAllCustomers = asyncHandler(async (req, res) => {
   });
 });
 
+export const getCustomersByFranchise = asyncHandler(async (req, res) => {
+
+  const { accountId } = req.params;
+
+  const { 
+    page = 1, 
+    limit = 10,
+    search = "",
+    status,
+    plan
+  } = req.query;
+
+  const skip = (Number(page) - 1) * Number(limit);
+
+  // ✅ Base query (Franchise filter)
+  const query = {
+    accountId
+  };
+
+  // 🔎 Search filter
+  if (search) {
+    query.$or = [
+      { firstName: { $regex: search, $options: "i" } },
+      { lastName: { $regex: search, $options: "i" } },
+      { phoneNumber: { $regex: search, $options: "i" } },
+      { emailId: { $regex: search, $options: "i" } },
+      { userName: { $regex: search, $options: "i" } }
+    ];
+  }
+
+  // ✅ Status filter
+  if (status && status !== "All") {
+    query.status = status;
+  }
+
+  // ✅ Plan filter (userType)
+  if (plan && plan !== "All") {
+    query.userType = plan;
+  }
+
+  // ✅ Fetch customers
+  const customers = await Customer.find(query)
+    .select("-password")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(Number(limit));
+
+  const totalCustomers = await Customer.countDocuments(query);
+
+  res.status(200).json({
+    success: true,
+    message: "Customers fetched successfully",
+    data: customers,
+    pagination: {
+      total: totalCustomers,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(totalCustomers / Number(limit)),
+    },
+  });
+
+});
 
 
 export const getSingleCustomer = asyncHandler(async (req, res) => {

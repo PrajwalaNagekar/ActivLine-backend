@@ -7,7 +7,7 @@ import { loginCustomer } from "../../controllers/Customer/customer.controller.js
 import { verifyAccessToken } from "../../middlewares/auth.middleware.js";
 import { verifyJWT,auth } from "../../middlewares/auth.middleware.js";
 import { allowRoles } from "../../middlewares/role.middleware.js";
-import { updateCustomerReferralCode,getAllCustomers,getSingleCustomer } from "../../controllers/Customer/customer.controller.js";
+import { updateCustomerReferralCode,getAllCustomers,getSingleCustomer,getCustomersByFranchise } from "../../controllers/Customer/customer.controller.js";
 import { getMyReferralCode,getProfileImage,updateProfileImage,deleteProfileImage } from "../../controllers/Customer/customer.controller.js";
 
 const router = express.Router();
@@ -85,6 +85,7 @@ router.get(
   allowRoles("SUPER_ADMIN", "ADMIN", "ADMIN_STAFF"),
   getAllCustomers
 );
+router.get("/customers/:accountId", getCustomersByFranchise);
 router.get(
   "/customers/:customerId",
   verifyJWT,
