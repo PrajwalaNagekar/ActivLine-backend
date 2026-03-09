@@ -58,9 +58,7 @@ export const loginUser = async ({
     ? user.generateRefreshToken()
     : null;
 
-  if (!isFranchise) {
-    user.refreshToken = refreshToken;
-  }
+  user.refreshToken = refreshToken;
 
   // 🔔 FCM TOKEN HANDLING
   if (fcmToken && deviceId) {

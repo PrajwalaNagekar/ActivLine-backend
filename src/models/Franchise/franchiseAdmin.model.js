@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 const franchiseAdminSchema = new mongoose.Schema(
 {
@@ -35,6 +36,8 @@ const franchiseAdminSchema = new mongoose.Schema(
     default: "ACTIVE"
   },
 
+  refreshToken: String,
+
   profileImage: String,
 
   fcmTokens: [
@@ -57,6 +60,33 @@ franchiseAdminSchema.pre("save", async function(){
 
 franchiseAdminSchema.methods.comparePassword = async function(password){
   return bcrypt.compare(password,this.password);
+};
+
+franchiseAdminSchema.methods.generateAccessToken = function(){
+  return jwt.sign(
+    {
+      _id: this._id,
+      email: this.email,
+      role: this.role,
+      accountId: this.accountId
+    },
+    process.env.ACCESS_TOKEN_SECRET,
+    {
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "1d"
+    }
+  );
+};
+
+franchiseAdminSchema.methods.generateRefreshToken = function(){
+  return jwt.sign(
+    {
+      _id: this._id,
+    },
+    process.env.REFRESH_TOKEN_SECRET,
+    {
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "10d"
+    }
+  );
 };
 
 export default mongoose.models.FranchiseAdmin ||
