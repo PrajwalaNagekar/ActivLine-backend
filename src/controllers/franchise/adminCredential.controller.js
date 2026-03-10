@@ -109,6 +109,84 @@ export const getFranchiseAdmins = async (req, res) => {
   }
 };
 
+export const getMyFranchiseAdminProfile = asyncHandler(async (req, res) => {
+  const adminId = req.user?._id;
+
+  const admin = await FranchiseAdmin.findById(adminId).select("-password -refreshToken");
+  if (!admin) {
+    return res.status(404).json({
+      success: false,
+      message: "Franchise admin not found",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Franchise admin profile fetched successfully",
+    data: admin,
+    meta: null,
+  });
+});
+
+export const updateMyFranchiseAdminProfile = asyncHandler(async (req, res) => {
+  const adminId = req.user?._id;
+  const { name, email, password } = req.body || {};
+
+  const updateData = {};
+
+  if (name && String(name).trim()) {
+    updateData.name = String(name).trim();
+  }
+
+  if (email && String(email).trim()) {
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existing = await FranchiseAdmin.findOne({
+      email: normalizedEmail,
+      _id: { $ne: adminId },
+    }).select("_id");
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: "Email already in use",
+      });
+    }
+    updateData.email = normalizedEmail;
+  }
+
+  if (password && String(password).trim()) {
+    updateData.password = await bcrypt.hash(String(password), 10);
+  }
+
+  if (req.file) {
+    const result = await uploadToCloudinary({
+      buffer: req.file.buffer,
+      mimetype: req.file.mimetype,
+      originalname: req.file.originalname,
+    });
+    updateData.profileImage = result.secure_url;
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "No valid fields provided for update",
+    });
+  }
+
+  const updatedAdmin = await FranchiseAdmin.findByIdAndUpdate(adminId, updateData, {
+    new: true,
+    runValidators: true,
+  }).select("-password -refreshToken");
+
+  return res.status(200).json({
+    success: true,
+    message: "Franchise admin profile updated successfully",
+    data: updatedAdmin,
+    meta: null,
+  });
+});
+
 export const updateFranchiseAdmin = async (req,res)=>{
 
  try{

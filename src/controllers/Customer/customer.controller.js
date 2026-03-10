@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Customer from "../../models/Customer/customer.model.js";
+import ChatRoom from "../../models/chat/chatRoom.model.js";
 import { asyncHandler } from "../../utils/AsyncHandler.js";
 import ApiError from "../../utils/ApiError.js";
 import ApiResponse from "../../utils/ApiReponse.js";
@@ -23,6 +24,15 @@ export const getCustomers = asyncHandler(async (req, res) => {
   // Scope results for franchise admins
   if (req.user?.role === "FRANCHISE_ADMIN") {
     filter.accountId = req.user.accountId;
+  }
+
+  // Scope results for admin staff (only customers assigned to this staff)
+  if (req.user?.role === "ADMIN_STAFF") {
+    const assignedCustomerIds = await ChatRoom.distinct("customer", {
+      assignedStaff: req.user._id,
+      customer: { $ne: null },
+    });
+    filter._id = { $in: assignedCustomerIds };
   }
 
   // Add status filter if provided
@@ -87,6 +97,18 @@ export const getCustomerById = asyncHandler(async (req, res) => {
   // Security check: A franchise admin can only view customers from their own franchise.
   if (req.user?.role === "FRANCHISE_ADMIN" && customer.accountId !== req.user.accountId) {
     throw new ApiError(403, "Access Denied. You can only view customers from your franchise.");
+  }
+
+  // Security check: Admin staff can only view customers assigned to them
+  if (req.user?.role === "ADMIN_STAFF") {
+    const assigned = await ChatRoom.exists({
+      assignedStaff: req.user._id,
+      customer: customer._id,
+    });
+
+    if (!assigned) {
+      throw new ApiError(403, "Access Denied. You can only view customers assigned to you.");
+    }
   }
 
   return res

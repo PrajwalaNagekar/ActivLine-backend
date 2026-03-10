@@ -3,7 +3,9 @@ import {
   createFranchiseAdmin,
   getFranchiseAdmins,
   updateFranchiseAdmin,
-  deleteFranchiseAdmin
+  deleteFranchiseAdmin,
+  getMyFranchiseAdminProfile,
+  updateMyFranchiseAdminProfile,
 } from "../../controllers/franchise/adminCredential.controller.js";
 import { verifyJWT } from "../../middlewares/auth.middleware.js";
 import { allowRoles } from "../../middlewares/role.middleware.js";
@@ -24,6 +26,19 @@ router.get(
   verifyJWT,
   allowRoles("FRANCHISE_ADMIN", "ADMIN", "SUPER_ADMIN"),
   getFranchiseAdmins
+);
+router.get(
+  "/me",
+  verifyJWT,
+  allowRoles("FRANCHISE_ADMIN"),
+  getMyFranchiseAdminProfile
+);
+router.put(
+  "/me",
+  verifyJWT,
+  allowRoles("FRANCHISE_ADMIN"),
+  upload.single("profileImage"),
+  updateMyFranchiseAdminProfile
 );
 router.put("/:id", upload.single("profileImage"), updateFranchiseAdmin);
 router.delete("/:id", deleteFranchiseAdmin);

@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import * as StaffRepo from "../../repositories/staff/adminStaff.repository.js";
 import StaffStatus from "../../models/staff/Staff.model.js";
 import * as LogoutRepo from "../../repositories/auth/logout.repository.js";
+import Customer from "../../models/Customer/customer.model.js";
 
 const ALLOWED_FILTER_ROLES = ["SUPER_ADMIN", "ADMIN", "ADMIN_STAFF", "STAFF", "FRANCHISE_ADMIN"];
 
@@ -29,6 +30,22 @@ const mapAdminWithStatus = (admin, statusMap) => ({
   ...admin.toObject(),
   status: statusMap[admin._id.toString()] || "ACTIVE",
 });
+
+const resolveScopedStaffId = (requester, staffIdFromQuery = null) => {
+  if (requester?.role === "ADMIN_STAFF") {
+    return requester?._id;
+  }
+
+  if (["ADMIN", "SUPER_ADMIN"].includes(requester?.role)) {
+    if (!staffIdFromQuery) return null;
+    if (!mongoose.Types.ObjectId.isValid(staffIdFromQuery)) {
+      throw new ApiError(400, "Invalid staffId");
+    }
+    return staffIdFromQuery;
+  }
+
+  throw new ApiError(403, "Access denied");
+};
 
 export const getAllAdminStaff = async (query = {}) => {
   const page = toPositiveInt(query.page, 1);
@@ -183,4 +200,273 @@ export const deleteAdminStaff = async (staffId) => {
   if (!staff) throw new ApiError(404, "Admin staff not found");
 
   return StaffRepo.deleteById(staffId);
+};
+
+export const getAssignedStaffStats = async (requester, query = {}) => {
+  const requestedStaffId = query?.staffId ? String(query.staffId).trim() : null;
+  const scopedStaffId =
+    requester?.role === "ADMIN_STAFF" ? requester?._id : requestedStaffId;
+
+  if (scopedStaffId && !mongoose.Types.ObjectId.isValid(scopedStaffId)) {
+    throw new ApiError(400, "Invalid staffId");
+  }
+
+  const staffStats = await StaffRepo.getAssignedStaffStatusStats(scopedStaffId);
+  const staffIds = staffStats.map((item) => item.staffId);
+
+  const statuses = await StaffStatus.find({
+    staffId: { $in: staffIds },
+  }).select("staffId status");
+
+  const statusMap = statuses.reduce((acc, curr) => {
+    acc[curr.staffId.toString()] = curr.status;
+    return acc;
+  }, {});
+
+  const data = staffStats.map((item) => ({
+    staffId: item.staffId,
+    staff: {
+      ...item.staff,
+      status: statusMap[item.staffId.toString()] || "ACTIVE",
+    },
+    tickets: {
+      totalAssigned: item.totalAssigned,
+      assigned: item.assigned,
+      open: item.open,
+      inProgress: item.inProgress,
+      resolved: item.resolved,
+      closed: item.closed,
+    },
+    lastAssignedAt: item.lastAssignedAt,
+  }));
+
+  const summary = data.reduce(
+    (acc, curr) => {
+      acc.assignedStaffCount += 1;
+      acc.totalAssignedTickets += curr.tickets.totalAssigned;
+      acc.statusCounts.assigned += curr.tickets.assigned;
+      acc.statusCounts.open += curr.tickets.open;
+      acc.statusCounts.inProgress += curr.tickets.inProgress;
+      acc.statusCounts.resolved += curr.tickets.resolved;
+      acc.statusCounts.closed += curr.tickets.closed;
+      return acc;
+    },
+    {
+      assignedStaffCount: 0,
+      totalAssignedTickets: 0,
+      statusCounts: {
+        assigned: 0,
+        open: 0,
+        inProgress: 0,
+        resolved: 0,
+        closed: 0,
+      },
+    }
+  );
+
+  return { summary, data };
+};
+
+export const getLatestAssignedRooms = async (limit = 5, requester) => {
+  const normalizedLimit = Math.min(toPositiveInt(limit, 5), 50);
+  const scopedStaffId =
+    requester?.role === "ADMIN_STAFF" ? requester?._id : null;
+
+  const rooms = await StaffRepo.getLatestAssignedRooms(normalizedLimit, scopedStaffId);
+  return {
+    limit: normalizedLimit,
+    count: rooms.length,
+    rooms,
+  };
+};
+
+export const getAssignedCustomers = async (requester, query = {}) => {
+  const page = toPositiveInt(query.page, 1);
+  const limit = Math.min(toPositiveInt(query.limit, 20), 200);
+  const search = String(query.search || "").trim();
+  const plan = query.plan ?? query.userGroupId;
+  const status = query.status ? String(query.status).trim().toUpperCase() : null;
+  const staffIdFromQuery = query.staffId ? String(query.staffId).trim() : null;
+  const scopedStaffId = resolveScopedStaffId(requester, staffIdFromQuery);
+
+  const assignedCustomerIds = await StaffRepo.getAssignedCustomerIds(scopedStaffId);
+
+  if (!assignedCustomerIds.length) {
+    return {
+      data: [],
+      meta: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+      },
+    };
+  }
+
+  const filter = {
+    _id: { $in: assignedCustomerIds },
+  };
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (plan !== undefined && plan !== null && String(plan).trim() !== "") {
+    const parsedPlan = Number.parseInt(String(plan), 10);
+    filter.userGroupId = Number.isFinite(parsedPlan) ? parsedPlan : String(plan);
+  }
+
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    filter.$or = [
+      { firstName: { $regex: searchRegex } },
+      { lastName: { $regex: searchRegex } },
+      { userName: { $regex: searchRegex } },
+    ];
+  }
+
+  const skip = (page - 1) * limit;
+  const [customers, total, customerStats] = await Promise.all([
+    Customer.find(filter)
+      .select("-password -rawPayload")
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Customer.countDocuments(filter),
+    StaffRepo.getAssignedCustomerStats(scopedStaffId),
+  ]);
+
+  const statsMap = customerStats.reduce((acc, item) => {
+    acc[String(item._id)] = item;
+    return acc;
+  }, {});
+
+  const data = customers.map((customer) => {
+    const stat = statsMap[String(customer._id)] || {};
+    return {
+      ...customer.toObject(),
+      planInfo: {
+        userGroupId: customer.userGroupId,
+        userType: customer.userType || null,
+      },
+      assignedTicketCount: stat.assignedTicketCount || 0,
+      lastAssignedAt: stat.lastAssignedAt || null,
+    };
+  });
+
+  return {
+    data,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    },
+  };
+};
+
+export const getAssignedCustomerById = async (requester, customerId, query = {}) => {
+  if (!mongoose.Types.ObjectId.isValid(customerId)) {
+    throw new ApiError(400, "Invalid customerId");
+  }
+
+  const staffIdFromQuery = query.staffId ? String(query.staffId).trim() : null;
+  const scopedStaffId = resolveScopedStaffId(requester, staffIdFromQuery);
+  const assignedCustomerIds = await StaffRepo.getAssignedCustomerIds(scopedStaffId);
+
+  if (!assignedCustomerIds.some((id) => String(id) === String(customerId))) {
+    throw new ApiError(404, "Customer not found for this staff");
+  }
+
+  const customer = await Customer.findById(customerId).select("-password -rawPayload");
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  const stats = await StaffRepo.getAssignedCustomerStats(scopedStaffId);
+  const statMap = stats.reduce((acc, item) => {
+    acc[String(item._id)] = item;
+    return acc;
+  }, {});
+  const customerStat = statMap[String(customer._id)] || {};
+
+  return {
+    ...customer.toObject(),
+    planInfo: {
+      userGroupId: customer.userGroupId,
+      userType: customer.userType || null,
+    },
+    assignedTicketCount: customerStat.assignedTicketCount || 0,
+    lastAssignedAt: customerStat.lastAssignedAt || null,
+  };
+};
+
+export const updateAssignedCustomer = async (requester, customerId, payload = {}, query = {}) => {
+  if (!mongoose.Types.ObjectId.isValid(customerId)) {
+    throw new ApiError(400, "Invalid customerId");
+  }
+
+  const staffIdFromQuery = query.staffId ? String(query.staffId).trim() : null;
+  const scopedStaffId = resolveScopedStaffId(requester, staffIdFromQuery);
+  const assignedCustomerIds = await StaffRepo.getAssignedCustomerIds(scopedStaffId);
+  if (!assignedCustomerIds.some((id) => String(id) === String(customerId))) {
+    throw new ApiError(404, "Customer not found for this staff");
+  }
+
+  const allowedFields = [
+    "firstName",
+    "lastName",
+    "userName",
+    "phoneNumber",
+    "altPhoneNumber",
+    "emailId",
+    "altEmailId",
+    "status",
+    "userGroupId",
+    "userType",
+    "address",
+    "installationAddress",
+  ];
+
+  const updateData = {};
+  allowedFields.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(payload, field)) {
+      updateData[field] = payload[field];
+    }
+  });
+
+  if (updateData.status) {
+    updateData.status = String(updateData.status).trim().toUpperCase();
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    throw new ApiError(400, "No valid fields provided for update");
+  }
+
+  const updated = await Customer.findByIdAndUpdate(customerId, updateData, {
+    new: true,
+    runValidators: true,
+  }).select("-password -rawPayload");
+
+  return updated;
+};
+
+export const deleteAssignedCustomer = async (requester, customerId, query = {}) => {
+  if (!mongoose.Types.ObjectId.isValid(customerId)) {
+    throw new ApiError(400, "Invalid customerId");
+  }
+
+  const staffIdFromQuery = query.staffId ? String(query.staffId).trim() : null;
+  const scopedStaffId = resolveScopedStaffId(requester, staffIdFromQuery);
+  const assignedCustomerIds = await StaffRepo.getAssignedCustomerIds(scopedStaffId);
+  if (!assignedCustomerIds.some((id) => String(id) === String(customerId))) {
+    throw new ApiError(404, "Customer not found for this staff");
+  }
+
+  const deleted = await Customer.findByIdAndDelete(customerId).select("-password -rawPayload");
+  if (!deleted) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  return deleted;
 };
