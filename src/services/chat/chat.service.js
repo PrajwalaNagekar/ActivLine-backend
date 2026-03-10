@@ -168,7 +168,7 @@ export const updateTicketStatus = async (req, roomId, newStatus) => {
   await ChatMsgRepo.saveMessage({
     roomId,
     senderId: req.user._id,
-    senderModel: "Admin",
+    senderModel: req.user.role === "FRANCHISE_ADMIN" ? "FranchiseAdmin" : "Admin",
     senderRole: req.user.role,
     message: statusMessage,
     messageType: "TEXT",
@@ -217,7 +217,9 @@ export const getMessagesByRoom = async (roomId) => {
     throw new ApiError(404, "Chat room not found");
   }
 
-  return ChatMsgRepo.getMessagesByRoom(roomId);
+  const messages = await ChatMsgRepo.getMessagesByRoom(roomId);
+
+  return messages;
 };
 
 /**

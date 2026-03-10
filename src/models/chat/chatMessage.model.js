@@ -100,7 +100,7 @@ const chatMessageSchema = new mongoose.Schema(
 
     senderModel: {
       type: String,
-      enum: ["Customer", "Admin"],
+      enum: ["Customer", "Admin", "FranchiseAdmin"],
       required: true,
     },
 

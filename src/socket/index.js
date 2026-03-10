@@ -103,27 +103,43 @@ io = new Server(server, {
        =============================== */
 
 
-
 socket.on("send-message", async ({ roomId, message = "", attachments = [] }) => {
   try {
+
     if (!roomId) return;
-    if (!message.trim() && attachments.length === 0) return;
+    if (!message?.trim() && attachments.length === 0) return;
 
     const room = await ChatRoom.findById(roomId).select("status");
     if (!room) throw new Error("Chat room not found");
 
+    /* ===============================
+       DETERMINE SENDER MODEL
+    =============================== */
+
+    const senderModel =
+      socket.user.role === "CUSTOMER"
+        ? "Customer"
+        : socket.user.role === "FRANCHISE_ADMIN"
+        ? "FranchiseAdmin"
+        : "Admin";
+
+    /* ===============================
+       UPLOAD ATTACHMENTS
+    =============================== */
+
     const uploadedAttachments = [];
 
     for (const file of attachments) {
+
       if (!file.buffer || file.buffer.length === 0) {
         throw new Error("Received empty file buffer");
       }
 
       const uploaded = await uploadToCloudinary({
-  buffer: Buffer.from(file.buffer),          // ← remove Uint8Array wrapper
-  mimetype: file.type || "application/pdf",  // ← fallback is good
-  originalname: file.name,
-});
+        buffer: Buffer.from(file.buffer),
+        mimetype: file.type || "application/octet-stream",
+        originalname: file.name,
+      });
 
       uploadedAttachments.push({
         name: file.name,
@@ -131,43 +147,76 @@ socket.on("send-message", async ({ roomId, message = "", attachments = [] }) => 
         size: uploaded.bytes,
         mimeType: file.type,
         extension: file.name.split(".").pop().toLowerCase(),
-        type: file.type.startsWith("image") ? "image" : "file",
+        type: file.type?.startsWith("image") ? "image" : "file",
       });
     }
+
+    /* ===============================
+       DETERMINE MESSAGE TYPE
+    =============================== */
+
+    let messageType = "TEXT";
+
+    if (uploadedAttachments.length > 0) {
+      const hasImage = uploadedAttachments.some(a => a.type === "image");
+      messageType = hasImage ? "IMAGE" : "FILE";
+    }
+
+    /* ===============================
+       SAVE MESSAGE
+    =============================== */
 
     const msg = await ChatMessage.create({
       roomId,
       senderId: socket.user._id,
       senderRole: socket.user.role,
-      senderModel: socket.user.role === "CUSTOMER" ? "Customer" : "Admin",
-      message,
+      senderModel,
+      message: message || "",
       statusAtThatTime: room.status,
-      messageType: uploadedAttachments.length
-        ? uploadedAttachments.some(f => f.type === "image")
-          ? "IMAGE"
-          : "FILE"
-        : "TEXT",
-      attachments: uploadedAttachments,
-      statusAtThatTime: room.status,
+      messageType,
+      attachments: uploadedAttachments
     });
 
-    io.to(roomId).emit("new-message", msg);
+    /* ===============================
+       POPULATE & EMIT MESSAGE TO ROOM
+    =============================== */
+
+    const populatedMsg = await ChatMessage.findById(msg._id).populate(
+      "senderId",
+      "name fullName email mobile role"
+    );
+
+    // The populated message is sent so client has all details,
+    // which is consistent with HTTP responses.
+    io.to(roomId).emit("new-message", populatedMsg);
+
+    /* ===============================
+       UPDATE ROOM LAST MESSAGE
+    =============================== */
+
+    const lastMessage =
+      message?.trim()
+        ? message
+        : uploadedAttachments.length > 0
+        ? uploadedAttachments[0].type === "image"
+          ? "📷 Image"
+          : "📎 File"
+        : "";
+
+    await ChatRoom.findByIdAndUpdate(roomId, {
+      lastMessage,
+      lastMessageAt: new Date(),
+    });
 
   } catch (err) {
-    console.error("❌ Socket Send Message Error:", err);
-    socket.emit("send-error", { message: err.message });
-  }
-  await ChatRoom.findByIdAndUpdate(roomId, {
-  lastMessage: message
-    ? message
-    : attachments.length > 0
-      ? attachments[0].type === "image"
-        ? "📷 Image"
-        : "📎 File"
-      : "",
-  lastMessageAt: new Date(),
-});
 
+    console.error("❌ Socket Send Message Error:", err);
+
+    socket.emit("send-error", {
+      message: err.message || "Failed to send message",
+    });
+
+  }
 });
 
 

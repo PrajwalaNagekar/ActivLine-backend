@@ -58,7 +58,7 @@ export const createFranchiseChatRoom = asyncHandler(async (req, res) => {
     await ChatMessage.create({
       roomId: room._id,
       senderId: req.user._id,
-      senderModel: "Admin",
+      senderModel: "FranchiseAdmin",
       senderRole: "FRANCHISE_ADMIN",
       message: text,
       messageType: "TEXT",
@@ -253,7 +253,7 @@ export const getFranchiseRoomMessages = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
   const senderRole = req.query.senderRole ? String(req.query.senderRole).toUpperCase() : null;
   const search = req.query.search ? String(req.query.search).trim() : "";
-  const sortOrder = String(req.query.sortOrder || "asc").toLowerCase() === "desc" ? -1 : 1;
+  const sortOrder = String(req.query.sortOrder || "desc").toLowerCase() === "asc" ? 1 : -1;
 
   const filter = { roomId };
   if (senderRole) {

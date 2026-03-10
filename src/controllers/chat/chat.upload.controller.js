@@ -70,11 +70,18 @@ export const uploadChatFiles = asyncHandler(async (req, res) => {
   }
 
   // ✅ CREATE CHAT MESSAGE
+  const senderModel =
+    req.user.role === "CUSTOMER"
+      ? "Customer"
+      : req.user.role === "FRANCHISE_ADMIN"
+        ? "FranchiseAdmin"
+        : "Admin";
+
   const message = await ChatMessage.create({
     roomId,
     senderId: req.user._id,
     senderRole: req.user.role,
-    senderModel: req.user.role === "CUSTOMER" ? "Customer" : "Admin",
+    senderModel,
     message: textMessage || "",
     messageType:
       attachments.length > 0
