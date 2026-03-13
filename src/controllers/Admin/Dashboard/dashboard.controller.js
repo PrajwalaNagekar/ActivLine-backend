@@ -80,3 +80,14 @@ export const getAssignedRoomsCount = asyncHandler(async (req, res) => {
     ApiResponse.success(data, "Assigned rooms count fetched")
   );
 });
+
+export const getReportSummary = asyncHandler(async (req, res) => {
+  const { groupId, accountId, months } = req.query;
+  const data = await DashboardService.getReportSummary({
+    groupId,
+    accountId,
+    months,
+  });
+
+  res.json(ApiResponse.success(data, "Report summary fetched"));
+});
