@@ -1,4 +1,7 @@
-import { fetchProfilesByFranchise } from "../../services/franchise/profile.service.js";
+import {
+  fetchProfilesByFranchise,
+  fetchProfilesWithDetailsByFranchise,
+} from "../../services/franchise/profile.service.js";
 
 export const getProfiles = async (req, res) => {
 
@@ -9,7 +12,13 @@ export const getProfiles = async (req, res) => {
     const profileIdFromParams = req.params?.profileId;
     const profileId = profileIdFromParams || profileIdFromQuery || id;
 
-    const result = await fetchProfilesByFranchise(accountId, {
+    const includeDetails = ["1", "true", "yes"].includes(
+      String(req.query.includeDetails || "").toLowerCase()
+    );
+
+    const result = await (includeDetails
+      ? fetchProfilesWithDetailsByFranchise
+      : fetchProfilesByFranchise)(accountId, {
       page,
       limit,
       search,
