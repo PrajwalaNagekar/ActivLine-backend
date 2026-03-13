@@ -20,7 +20,7 @@ export const getProfile = asyncHandler(async (req, res) => {
   const customer = await getCustomerProfile(userId);
 
   return res.status(200).json(
-    new ApiResponse(200, customer, "Customer profile fetched successfully")
+    ApiResponse.success(customer, "Customer profile fetched successfully")
   );
 });
 
