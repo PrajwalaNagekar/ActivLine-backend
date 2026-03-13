@@ -19,8 +19,21 @@ export const getProfile = asyncHandler(async (req, res) => {
 
   const customer = await getCustomerProfile(userId);
 
+  const customerData = customer?.toObject ? customer.toObject() : customer;
+
+  if (!customerData.installationAddress) {
+    customerData.installationAddress = {
+      line1: null,
+      line2: null,
+      city: null,
+      pin: null,
+      state: null,
+      country: null,
+    };
+  }
+
   return res.status(200).json(
-    ApiResponse.success(customer, "Customer profile fetched successfully")
+    ApiResponse.success(customerData, "Customer profile fetched successfully")
   );
 });
 

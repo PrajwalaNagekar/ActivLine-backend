@@ -147,6 +147,17 @@ export const createCustomer = asyncHandler(async (req, res) => {
     delete customerData.password;
   }
 
+  if (!customerData.installationAddress) {
+    customerData.installationAddress = {
+      line1: null,
+      line2: null,
+      city: null,
+      pin: null,
+      state: null,
+      country: null,
+    };
+  }
+
   if (value.emailId) {
     await sendCustomerWelcomeEmail({
       to: value.emailId,
@@ -160,7 +171,7 @@ export const createCustomer = asyncHandler(async (req, res) => {
   return res.status(201).json(
     ApiResponse.success(
       null,
-      "Account created successfully"
+      "Your account is created in ActivLine"
     )
   );
 });

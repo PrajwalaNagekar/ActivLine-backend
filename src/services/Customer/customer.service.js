@@ -74,6 +74,14 @@ export const getMessagesByRoom = async (roomId) => {
 
 export const createCustomerService = async (payload, files) => {
   const uploadedFilePaths = [];
+  const pickFirst = (...values) => {
+    for (const value of values) {
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return value;
+      }
+    }
+    return undefined;
+  };
   const generateRandomUserName = async () => {
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const randomNumber = crypto.randomInt(0, 1000000);
@@ -251,12 +259,42 @@ const savedCustomer = await createCustomerRepo({ // The pre-save hook will gener
      🔹 INSTALLATION ADDRESS
   =============================== */
   installationAddress: {
-    line1: payload.installation_address_line1,
-    line2: payload.installation_address_line2,
-    city: payload.installation_address_city,
-    pin: payload.installation_address_pin,
-    state: payload.installation_address_state,
-    country: payload.installation_address_country,
+    line1: pickFirst(
+      payload.installation_address_line1,
+      payload["installationAddress-line1"],
+      payload.installationAddress_line1,
+      payload.installationAddressLine1
+    ),
+    line2: pickFirst(
+      payload.installation_address_line2,
+      payload["installationAddress-line2"],
+      payload.installationAddress_line2,
+      payload.installationAddressLine2
+    ),
+    city: pickFirst(
+      payload.installation_address_city,
+      payload["installationAddress-city"],
+      payload.installationAddress_city,
+      payload.installationAddressCity
+    ),
+    pin: pickFirst(
+      payload.installation_address_pin,
+      payload["installationAddress-pin"],
+      payload.installationAddress_pin,
+      payload.installationAddressPin
+    ),
+    state: pickFirst(
+      payload.installation_address_state,
+      payload["installationAddress-state"],
+      payload.installationAddress_state,
+      payload.installationAddressState
+    ),
+    country: pickFirst(
+      payload.installation_address_country,
+      payload["installationAddress-country"],
+      payload.installationAddress_country,
+      payload.installationAddressCountry
+    ),
   },
 
   /* ===============================
