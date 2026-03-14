@@ -27,3 +27,17 @@ export const allowRoles = (...roles) => {
     next();
   };
 };
+
+export const allowRolesExceptCustomer = (req, _, next) => {
+  if (!req.user || !req.user.role) {
+    throw new ApiError(401, "Unauthorized");
+  }
+
+  const userRole = String(req.user.role).toUpperCase();
+
+  if (userRole === "CUSTOMER") {
+    throw new ApiError(403, "Access denied");
+  }
+
+  next();
+};

@@ -1,96 +1,43 @@
-import express from "express";
-import { createCustomer, updateCustomer,getMyProfile } from "../../controllers/Customer/customer.controller.js";
+import { Router } from "express";
+import {
+  createCustomer,
+  getCustomers,
+  getCustomerById,
+} from "../../controllers/customer/customer.controller.js";
 import { upload } from "../../middlewares/multer.middleware.js";
-import { validate } from "../../middlewares/validate.middleware.js";
-import { createCustomerSchema } from "../../validations/Customer/customer.validation.js";
-import { loginCustomer } from "../../controllers/Customer/customer.controller.js";
-import { verifyAccessToken } from "../../middlewares/auth.middleware.js";
-import { verifyJWT,auth } from "../../middlewares/auth.middleware.js";
+import { verifyJWT } from "../../middlewares/auth.middleware.js";
 import { allowRoles } from "../../middlewares/role.middleware.js";
-import { updateCustomerReferralCode,getAllCustomers,getSingleCustomer } from "../../controllers/Customer/customer.controller.js";
-import { getMyReferralCode,getProfileImage,updateProfileImage,deleteProfileImage } from "../../controllers/Customer/customer.controller.js";
 
-const router = express.Router();
+const router = Router();
+
+const maybeUploadCustomerFiles = (req, res, next) => {
+  if (req.is("multipart/form-data")) {
+    return upload.fields([
+      { name: "idFile", maxCount: 1 },
+      { name: "addressFile", maxCount: 1 },
+      { name: "cafFile", maxCount: 1 },
+      { name: "reportFile", maxCount: 1 },
+      { name: "signFile", maxCount: 1 },
+      { name: "profilePicFile", maxCount: 1 },
+    ])(req, res, next);
+  }
+  return next();
+};
 
 router.post(
   "/create",
-  
- upload.fields([
-  { name: "idFile", maxCount: 1 },
-  { name: "addressFile", maxCount: 1 },
-  { name: "cafFile", maxCount: 1 },
-  { name: "reportFile", maxCount: 1 },
-  { name: "signFile", maxCount: 1 },
-  { name: "profilePicFile", maxCount: 1 },
-]),
-  validate(createCustomerSchema), // ✅ validation after multer
+  maybeUploadCustomerFiles,
   createCustomer
 );
 
-router.post(
-  "/update/:activlineUserId",
-  upload.fields([
-    { name: "idFile", maxCount: 1 },
-    { name: "addressFile", maxCount: 1 },
-  ]),
-  updateCustomer
-);
+// This route handles fetching all customers
+router
+  .route("/customers")
+  .get(verifyJWT, allowRoles("ADMIN", "SUPER_ADMIN", "FRANCHISE_ADMIN", "ADMIN_STAFF"), getCustomers);
 
-
-router.post("/login", express.json(), upload.none(), loginCustomer);
-
-router.get("/me", verifyJWT, getMyProfile);
-
-router.patch(
-  "/customer/referral",
-  verifyJWT,
-  allowRoles(
-    "SUPER_ADMIN",
-    "ADMIN",
-    "ADMIN_STAFF",
-    "SUPER_ADMIN_STAFF"
-  ),
-  updateCustomerReferralCode
-);
-
-
-router.get(
-  "/referral-code",
-  verifyJWT,
-  allowRoles("CUSTOMER"),
-  getMyReferralCode
-);
-
-// routes/customer.routes.js
-
-router.get("/me/profile-image", verifyJWT, auth("CUSTOMER"), getProfileImage);
-
-router.put(
-  "/me/profile-image",
-  verifyJWT,
-  auth("CUSTOMER"),
-  upload.single("profilePicFile"),
-  updateProfileImage
-);
-
-router.delete(
-  "/me/profile-image",
-  verifyJWT,
-  auth("CUSTOMER"),
-  deleteProfileImage
-);
-router.get(
-  "/customers",
-  verifyJWT,
-  allowRoles("SUPER_ADMIN", "ADMIN", "ADMIN_STAFF"),
-  getAllCustomers
-);
-router.get(
-  "/customers/:customerId",
-  verifyJWT,
-  allowRoles("SUPER_ADMIN", "ADMIN", "ADMIN_STAFF"),
-  getSingleCustomer
-);
-
+// This new route handles fetching a single customer by their ID
+router
+  .route("/customers/:customerId")
+  .get(verifyJWT, allowRoles("ADMIN", "SUPER_ADMIN", "FRANCHISE_ADMIN", "ADMIN_STAFF"), getCustomerById);
 
 export default router;

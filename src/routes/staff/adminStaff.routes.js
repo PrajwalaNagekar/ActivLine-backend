@@ -4,40 +4,67 @@ import {
   deleteAdminStaff,
   getAllAdminStaff,
   getSingleAdminStaff,
+  getAssignedStaffStats,
+  getLatestAssignedRooms,
+  getAssignedCustomers,
+  getAssignedCustomerById,
+  updateAssignedCustomer,
+  deleteAssignedCustomer,
 } from "../../controllers/staff/adminStaff.manage.controller.js";
 import { verifyJWT } from "../../middlewares/auth.middleware.js";
 import { canManageAdminStaff } from "../../middlewares/auth.middleware.js";
+import { allowRoles, allowRolesExceptCustomer } from "../../middlewares/role.middleware.js";
 
 const router = Router();
+
+router.get("/", verifyJWT, allowRolesExceptCustomer, getAllAdminStaff);
+
 router.get(
-  "/",
+  "/assignment-stats",
   verifyJWT,
-  getAllAdminStaff
+  allowRoles("ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"),
+  getAssignedStaffStats
 );
 
-// 👤 GET SINGLE ADMIN STAFF
-// GET /api/staff/admin-staff/:id
 router.get(
-  "/:id",
+  "/latest-assigned-rooms",
   verifyJWT,
-  getSingleAdminStaff
+  allowRoles("ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"),
+  getLatestAssignedRooms
 );
-// ✏️ UPDATE ADMIN STAFF
-// PUT /api/staff/admin-staff/:id
+
+router.get(
+  "/assigned-customers",
+  verifyJWT,
+  allowRoles("ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"),
+  getAssignedCustomers
+);
+
+router.get(
+  "/assigned-customers/:customerId",
+  verifyJWT,
+  allowRoles("ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"),
+  getAssignedCustomerById
+);
+
 router.put(
-  "/:id",
+  "/assigned-customers/:customerId",
   verifyJWT,
-  canManageAdminStaff,
-  updateAdminStaff
+  allowRoles("ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"),
+  updateAssignedCustomer
 );
 
-// 🗑 DELETE ADMIN STAFF
-// DELETE /api/staff/admin-staff/:id
 router.delete(
-  "/:id",
+  "/assigned-customers/:customerId",
   verifyJWT,
-  canManageAdminStaff,
-  deleteAdminStaff
+  allowRoles("ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"),
+  deleteAssignedCustomer
 );
+
+router.get("/:id", verifyJWT, allowRolesExceptCustomer, getSingleAdminStaff);
+
+router.put("/:id", verifyJWT, canManageAdminStaff, updateAdminStaff);
+
+router.delete("/:id", verifyJWT, canManageAdminStaff, deleteAdminStaff);
 
 export default router;

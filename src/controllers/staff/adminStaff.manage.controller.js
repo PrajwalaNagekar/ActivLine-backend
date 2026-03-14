@@ -5,10 +5,20 @@ import * as StaffService from "../../services/staff/adminStaff.manage.service.js
 
 
 export const getAllAdminStaff = asyncHandler(async (req, res) => {
-  const staffList = await StaffService.getAllAdminStaff();
+  const result = await StaffService.getAllAdminStaff(req.query || {});
+
+  if (result.isSingle) {
+    return res.json(
+      ApiResponse.success(result.data, "Admin staff fetched successfully")
+    );
+  }
 
   return res.json(
-    ApiResponse.success(staffList, "Admin staff list fetched successfully")
+    ApiResponse.success(
+      result.data,
+      "Admin staff list fetched successfully",
+      result.meta
+    )
   );
 });
 
@@ -45,5 +55,62 @@ export const deleteAdminStaff = asyncHandler(async (req, res) => {
 
   return res.json(
     ApiResponse.success(null, "Admin staff deleted successfully")
+  );
+});
+
+export const getAssignedStaffStats = asyncHandler(async (req, res) => {
+  const result = await StaffService.getAssignedStaffStats(req.user, req.query || {});
+
+  return res.json(
+    ApiResponse.success(result, "Assigned staff stats fetched successfully")
+  );
+});
+
+export const getLatestAssignedRooms = asyncHandler(async (req, res) => {
+  const result = await StaffService.getLatestAssignedRooms(req.query?.limit, req.user);
+
+  return res.json(
+    ApiResponse.success(result, "Latest assigned rooms fetched successfully")
+  );
+});
+
+export const getAssignedCustomers = asyncHandler(async (req, res) => {
+  const result = await StaffService.getAssignedCustomers(req.user, req.query || {});
+
+  return res.json(
+    ApiResponse.success(result.data, "Assigned customers fetched successfully", result.meta)
+  );
+});
+
+export const getAssignedCustomerById = asyncHandler(async (req, res) => {
+  const result = await StaffService.getAssignedCustomerById(
+    req.user,
+    req.params.customerId,
+    req.query || {}
+  );
+
+  return res.json(
+    ApiResponse.success(result, "Assigned customer details fetched successfully")
+  );
+});
+
+export const updateAssignedCustomer = asyncHandler(async (req, res) => {
+  const result = await StaffService.updateAssignedCustomer(
+    req.user,
+    req.params.customerId,
+    req.body || {},
+    req.query || {}
+  );
+
+  return res.json(
+    ApiResponse.success(result, "Assigned customer updated successfully")
+  );
+});
+
+export const deleteAssignedCustomer = asyncHandler(async (req, res) => {
+  await StaffService.deleteAssignedCustomer(req.user, req.params.customerId, req.query || {});
+
+  return res.json(
+    ApiResponse.success(null, "Assigned customer deleted successfully")
   );
 });

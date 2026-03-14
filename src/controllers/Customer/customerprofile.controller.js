@@ -1,7 +1,41 @@
 import { asyncHandler } from "../../utils/AsyncHandler.js";
 import { ApiResponse } from "../../utils/ApiReponse.js";
 import { ApiError } from "../../utils/ApiError.js";
-import { getActivlineUserDetails,editActivlineUserProfile } from "../../services/customer/customerprofile.service.js";
+import { 
+  getActivlineUserDetails, 
+  editActivlineUserProfile, 
+  getCustomerProfile 
+} from "../../services/customer/customerprofile.service.js";
+
+/**
+ * Get profile for currently authenticated customer
+ */
+export const getProfile = asyncHandler(async (req, res) => {
+  const userId = req.user?._id;
+
+  if (!userId) {
+    throw new ApiError(401, "User ID not found in token");
+  }
+
+  const customer = await getCustomerProfile(userId);
+
+  const customerData = customer?.toObject ? customer.toObject() : customer;
+
+  if (!customerData.installationAddress) {
+    customerData.installationAddress = {
+      line1: null,
+      line2: null,
+      city: null,
+      pin: null,
+      state: null,
+      country: null,
+    };
+  }
+
+  return res.status(200).json(
+    ApiResponse.success(customerData, "Customer profile fetched successfully")
+  );
+});
 
 export const fetchUserFullDetails = asyncHandler(async (req, res) => {
   const { user_id } = req.params;

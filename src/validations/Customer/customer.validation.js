@@ -5,9 +5,9 @@ export const createCustomerSchema = Joi.object({
 
   accountId: Joi.string().required(),
 
-  userName: Joi.string().min(3).required(),
+  userName: Joi.string().min(3).optional().allow(""),
 
-  password: Joi.string().min(6).optional(),
+  password: Joi.string().min(6).optional().allow(""),
 
   phoneNumber: Joi.string()
     .pattern(/^[6-9]\d{9}$/)
@@ -28,6 +28,18 @@ export const createCustomerSchema = Joi.object({
   address_pin: Joi.string().optional(),
   address_state: Joi.string().optional(),
   address_country: Joi.string().length(2).optional(),
+  installation_address_line1: Joi.string().optional(),
+  installation_address_line2: Joi.string().optional(),
+  installation_address_city: Joi.string().optional(),
+  installation_address_pin: Joi.string().optional(),
+  installation_address_state: Joi.string().optional(),
+  installation_address_country: Joi.string().optional(),
+  "installationAddress-line1": Joi.string().optional(),
+  "installationAddress-line2": Joi.string().optional(),
+  "installationAddress-city": Joi.string().optional(),
+  "installationAddress-pin": Joi.string().optional(),
+  "installationAddress-state": Joi.string().optional(),
+  "installationAddress-country": Joi.string().optional(),
   referralCode: Joi.string().optional(),
 
   notifyUserSms: Joi.string().valid("on", "off").optional(),

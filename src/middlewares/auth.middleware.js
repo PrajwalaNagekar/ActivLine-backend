@@ -39,6 +39,7 @@ export const verifyJWT = asyncHandler(async (req, _res, next) => {
   _id: decoded._id || decoded.id,
   role: (decoded.role || decoded.type || "CUSTOMER").toUpperCase(),
   email: decoded.email || null,
+  accountId: decoded.accountId || null,
 };
 
 
@@ -132,7 +133,7 @@ export const canManageAdminStaff = asyncHandler(async (req, _, next) => {
   }
 
   // ✅ ADMIN → full access (Check this FIRST so they can manage terminated staff)
-  if (req.user.role === "ADMIN") {
+  if (req.user.role === "ADMIN" || req.user.role === "SUPER_ADMIN") {
     return next();
   }
 
@@ -262,4 +263,35 @@ export const auth = (...allowedRoles) => {
 
     next();
   });
+};
+
+
+export const verifyFranchiseAdmin = (req,res,next)=>{
+
+ try{
+
+ const token = req.headers.authorization?.split(" ")[1];
+
+ if(!token){
+   return res.status(401).json({
+     success:false,
+     message:"No token provided"
+   });
+ }
+
+ const decoded = jwt.verify(token,process.env.JWT_SECRET);
+
+ req.admin = decoded;
+
+ next();
+
+ }catch(error){
+
+ res.status(401).json({
+   success:false,
+   message:"Invalid token"
+ });
+
+ }
+
 };

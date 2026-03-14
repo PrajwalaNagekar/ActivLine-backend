@@ -5,7 +5,9 @@ import {
   getTodayResolvedTickets,
   getTotalCustomers,
   getRecentTickets,
+  getRecentPayments,
   getAssignedRoomsCount,
+  getReportSummary,
 } from "../../../controllers/Admin/Dashboard/dashboard.controller.js";
 import { verifyJWT } from "../../../middlewares/auth.middleware.js";
 import { allowRoles } from "../../../middlewares/role.middleware.js";
@@ -19,5 +21,7 @@ router.get("/in-progress-tickets", getInProgressTickets);
 router.get("/today-resolved", getTodayResolvedTickets);
 router.get("/total-customers", getTotalCustomers);
 router.get("/recent-tickets", getRecentTickets);
+router.get("/recent-payments", getRecentPayments);
 router.get("/assigned-rooms", getAssignedRoomsCount);
+router.get("/report-summary", getReportSummary);
 export default router;

@@ -3,10 +3,13 @@
 import * as ChatRoomRepo from "../../repositories/chat/chatRoom.repository.js";
 import * as ChatMsgRepo from "../../repositories/chat/chatMessage.repository.js";
 import ChatMessage from "../../models/chat/chatMessage.model.js";
+import ChatRoom from "../../models/chat/chatRoom.model.js";
 import { createActivityLog } from "../ActivityLog/activityLog.service.js";
 import ApiError from "../../utils/ApiError.js";
 import crypto from "crypto";
 import { notifyCustomer } from "../Notification/customer.notification.service.js";
+import CustomerNotification from "../../models/Notification/customernotification.model.js";
+import Notification from "../../models/Notification/notification.model.js";
 /**
  * ===============================
  * ADMIN → FETCH ALL ROOMS
@@ -118,9 +121,32 @@ export const updateTicketStatus = async (req, roomId, newStatus) => {
 
   if (
     ["IN_PROGRESS", "RESOLVED", "CLOSED"].includes(newStatus) &&
-    !["ADMIN", "SUPER_ADMIN", "ADMIN_STAFF"].includes(userRole)
+    !["ADMIN", "SUPER_ADMIN", "ADMIN_STAFF", "FRANCHISE_ADMIN"].includes(userRole)
   ) {
     throw new ApiError(403, "You are not allowed to update ticket status");
+  }
+
+  // 🔐 FRANCHISE ADMIN CHECK: Can only manage own franchise tickets
+  if (userRole === "FRANCHISE_ADMIN") {
+    if (!room.customer || room.customer.accountId !== req.user.accountId) {
+      throw new ApiError(403, "Access denied: You can only manage tickets for your franchise");
+    }
+  }
+
+  // CLOSE => delete room + full chat history + room-linked notifications
+  if (newStatus === "CLOSED") {
+    await Promise.all([
+      ChatMessage.deleteMany({ roomId }),
+      ChatRoom.deleteOne({ _id: roomId }),
+      CustomerNotification.deleteMany({ "data.roomId": roomId }),
+      Notification.deleteMany({ "data.roomId": roomId }),
+    ]);
+
+    return {
+      _id: roomId,
+      status: "CLOSED",
+      deleted: true,
+    };
   }
 
   const updatedRoom = await ChatRoomRepo.updateStatus(roomId, newStatus);
@@ -142,7 +168,7 @@ export const updateTicketStatus = async (req, roomId, newStatus) => {
   await ChatMsgRepo.saveMessage({
     roomId,
     senderId: req.user._id,
-    senderModel: "Admin",
+    senderModel: req.user.role === "FRANCHISE_ADMIN" ? "FranchiseAdmin" : "Admin",
     senderRole: req.user.role,
     message: statusMessage,
     messageType: "TEXT",
@@ -150,17 +176,13 @@ export const updateTicketStatus = async (req, roomId, newStatus) => {
   });
 
   // ✅ 🔔 NOTIFY CUSTOMER
-  if (["RESOLVED", "CLOSED"].includes(newStatus)) {
+  if (newStatus === "RESOLVED") {
     await notifyCustomer({
       customerId: room.customer._id, // IMPORTANT
       type: "TICKET",
-      roomId,
-        title: firstCustomerMsg?.message || "",
-      message:
-        newStatus === "RESOLVED"
-          ? "✅ Your issue has been resolved"
-          : "📌 Your ticket has been closed",
-      
+      data: { roomId },
+      title: firstCustomerMsg?.message || "",
+      message: "✅ Your issue has been resolved",
     });
   }
 
@@ -189,7 +211,15 @@ export const assignStaffToRoom = async (roomId, staffId) => {
  * ===============================
  */
 export const getMessagesByRoom = async (roomId) => {
-  return ChatMsgRepo.getMessagesByRoom(roomId);
+  const room = await ChatRoomRepo.findById(roomId);
+
+  if (!room) {
+    throw new ApiError(404, "Chat room not found");
+  }
+
+  const messages = await ChatMsgRepo.getMessagesByRoom(roomId);
+
+  return messages;
 };
 
 /**
@@ -207,6 +237,7 @@ export const canUserSendMessage = async ({
   roomId,
   senderRole,
   senderId,
+  accountId,
 }) => {
   const room = await ChatRoomRepo.findById(roomId);
 
@@ -221,27 +252,34 @@ export const canUserSendMessage = async ({
 
   // ✅ Customer always allowed
   if (senderRole === "CUSTOMER") {
+    const roomCustomerId =
+      typeof room.customer === "object" && room.customer?._id
+        ? room.customer._id.toString()
+        : room.customer?.toString();
+    if (roomCustomerId !== senderId.toString()) {
+      throw new ApiError(403, "You cannot send message in this chat");
+    }
     return room;
   }
 
-  // ✅ Admin always allowed (NO assignedStaff check)
-  if (senderRole === "ADMIN" || senderRole === "SUPER_ADMIN") {
+  // ✅ Franchise admin only for own franchise customer rooms
+  if (senderRole === "FRANCHISE_ADMIN") {
+    if (!accountId) {
+      throw new ApiError(403, "You cannot send message in this chat");
+    }
+    if (!room.customer || room.customer.accountId !== accountId) {
+      throw new ApiError(403, "You cannot send message in this chat");
+    }
     return room;
   }
 
-  // ✅ Admin staff only if assigned
-  if (senderRole === "ADMIN_STAFF") {
-    if (!room.assignedStaff) {
-      throw new ApiError(403, "Staff not assigned to this chat");
-    }
-
-    const assignedStaffId = room.assignedStaff._id
-      ? room.assignedStaff._id.toString()
-      : room.assignedStaff.toString();
-
-    if (assignedStaffId === senderId.toString()) {
-      return room;
-    }
+  // ✅ Admin & Staff always allowed (NO assignedStaff check)
+  if (
+    senderRole === "ADMIN" ||
+    senderRole === "SUPER_ADMIN" ||
+    senderRole === "ADMIN_STAFF"
+  ) {
+    return room;
   }
 
   // ❌ Everything else blocked
@@ -253,10 +291,14 @@ export const canUserSendMessage = async ({
  * ===============================
  */
 export const getRoomsForStaff = async (staffId) => {
-  return ChatRoomRepo.findByAssignedStaff(staffId);
+  return ChatRoom.find({ assignedStaff: staffId })
+    .populate("customer", "firstName lastName emailId userName")
+    .sort({ updatedAt: -1 });
 };
 export const getAssignedRoomsForStaff = async (staffId) => {
-  return ChatRoomRepo.getAssignedRoomsForStaff(staffId);
+  return ChatRoom.find({ assignedStaff: staffId })
+    .populate("customer", "firstName lastName emailId userName")
+    .sort({ updatedAt: -1 });
 };
 
 

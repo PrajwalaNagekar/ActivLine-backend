@@ -1,284 +1,177 @@
-// import { createCustomerSchema } from "../../validations/Customer/customer.validation.js";
-
-import { asyncHandler } from "../../utils/AsyncHandler.js";
-import ApiResponse from "../../utils/ApiReponse.js";
+import mongoose from "mongoose";
 import Customer from "../../models/Customer/customer.model.js";
-import jwt from "jsonwebtoken";
-// import { loginCustomerSchema } from "../../validations/Customer/customer.validation.js";
-import { createCustomerService ,updateCustomerService,getMyProfileService,getProfileImageService,
-  updateProfileImageService,
-  deleteProfileImageService,} from "../../services/Customer/customer.service.js";
-
+import ChatRoom from "../../models/chat/chatRoom.model.js";
+import { createCustomerSchema } from "../../validations/Customer/customer.validation.js";
+import { createCustomerService } from "../../services/customer/customer.service.js";
+import { asyncHandler } from "../../utils/AsyncHandler.js";
 import ApiError from "../../utils/ApiError.js";
-export const createCustomer = asyncHandler(async (req, res) => {
-  const customer = await createCustomerService(req.body, req.files);
+import ApiResponse from "../../utils/ApiReponse.js";
+import { sendCustomerWelcomeEmail } from "../../utils/mail.util.js";
 
-  res.status(201).json({
-    success: true,
-    message: "Customer created successfully",
-    data: customer, // 🔥 FULL MODEL HERE
-  });
-});
+/**
+ * @description Get all customers with filtering, searching, and pagination
+ * @route GET /api/customer/customers
+ * @access Private (ADMIN, SUPER_ADMIN, FRANCHISE_ADMIN)
+ */
+export const getCustomers = asyncHandler(async (req, res) => {
+  const {
+    page = 1,
+    limit = 10,
+    status,
+    userGroupId, // for plan-wise filtering
+    search, // for name search
+  } = req.query;
 
+  const filter = {};
 
+  // Scope results for franchise admins
+  if (req.user?.role === "FRANCHISE_ADMIN") {
+    filter.accountId = req.user.accountId;
+  }
 
-export const updateCustomer = asyncHandler(async (req, res) => {
-  const { activlineUserId } = req.params;
-
-  const result = await updateCustomerService(
-    activlineUserId,
-    req.body,
-    req.files
-  );
-
-  res.status(200).json({
-    success: true,
-    message: "Customer updated successfully",
-    data: result,
-  });
-});
-
-// export const loginCustomer = async (req, res) => {
-//   const { error, value } = loginCustomerSchema.validate(req.body);
-//   if (error) throw error;
-
-//   const result = await CustomerService.loginCustomer(value);
-
-//   res.status(200).json(
-//     ApiResponse.success(result, "Login successful")
-//   );
-// };
-
-
-
-export const loginCustomer = asyncHandler(async (req, res) => {
-  const { identifier, password } = req.body;
-
-  if (!identifier || !password) {
-    return res.status(400).json({
-      success: false,
-      message: "Username/Phone and password are required",
+  // Scope results for admin staff (only customers assigned to this staff)
+  if (req.user?.role === "ADMIN_STAFF") {
+    const assignedCustomerIds = await ChatRoom.distinct("customer", {
+      assignedStaff: req.user._id,
+      customer: { $ne: null },
     });
+    filter._id = { $in: assignedCustomerIds };
   }
 
-  const user = await Customer.findOne({
-    $or: [
-      { userName: identifier },
-      { phoneNumber: identifier }
-    ]
-  });
-
-  if (!user) {
-    return res.status(404).json({
-      success: false,
-      message: "User does not exist",
-    });
+  // Add status filter if provided
+  if (status) {
+    filter.status = status.toUpperCase();
   }
 
-  const isPasswordValid = await user.comparePassword(password);
-
-  if (!isPasswordValid) {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid user credentials",
-    });
+  // Add plan (userGroupId) filter if provided
+  if (userGroupId) {
+    filter.userGroupId = userGroupId;
   }
 
-  const accessToken = jwt.sign(
-    { _id: user._id, role: "CUSTOMER" },
-    process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "1d" }
-  );
+  // Add search functionality for name fields
+  if (search) {
+    const searchRegex = new RegExp(search, "i"); // case-insensitive regex
+    filter.$or = [
+      { firstName: { $regex: searchRegex } },
+      { lastName: { $regex: searchRegex } },
+      { userName: { $regex: searchRegex } },
+    ];
+  }
 
-  const refreshToken = jwt.sign(
-    { _id: user._id },
-    process.env.REFRESH_TOKEN_SECRET || "refresh-secret",
-    { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "10d" }
-  );
+  const pageNum = parseInt(page, 10);
+  const limitNum = parseInt(limit, 10);
+  const skip = (pageNum - 1) * limitNum;
 
-  const loggedInUser = await Customer.findById(user._id).select("-password");
+  const [customers, totalCustomers] = await Promise.all([
+    Customer.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum),
+    Customer.countDocuments(filter),
+  ]);
 
-  res.status(200).json({
-    success: true,
-    message: "Login successful",
-    data: {
-      user: loggedInUser,
-      accessToken,
-      refreshToken,
-    },
-  });
+  return res
+    .status(200)
+    .json(
+      ApiResponse.success(customers, "Customers fetched successfully", {
+        page: pageNum,
+        limit: limitNum,
+        total: totalCustomers,
+        totalPages: Math.ceil(totalCustomers / limitNum),
+      })
+    );
 });
 
-
-
-export const getMyProfile = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
-
-  const profile = await getMyProfileService(userId);
-
-  res.status(200).json({
-    success: true,
-    message: "Profile fetched successfully",
-    data: profile,
-  });
-});
-
-export const updateCustomerReferralCode = asyncHandler(async (req, res) => {
-  const role = req.user.role;
-
-  if (role === "CUSTOMER") {
-    throw new ApiError(403, "Access denied");
-  }
-
-  const { userName, referralCode, message } = req.body;
-
-  const customer = await Customer.findOne({ userName });
-
-  if (!customer) {
-    throw new ApiError(404, "Customer not found");
-  }
-
-  // ❌ Block referral code editing
-  if (referralCode) {
-    throw new ApiError(403, "Referral code is auto-generated and cannot be edited");
-  }
-
-  // ✅ Allow message editing
-  if (message !== undefined) {
-    customer.referral.message = message;
-  }
-
-  await customer.save();
-
-  res.json({
-    success: true,
-    message: "Referral message updated successfully",
-    data: {
-      userName,
-      message
-    }
-  });
-});
-
-
-
-
-
-export const deleteCustomerReferralCode = asyncHandler(async (req, res) => {
+/**
+ * @description Get a single customer by its ID
+ * @route GET /api/customer/customers/:customerId
+ * @access Private (ADMIN, SUPER_ADMIN, FRANCHISE_ADMIN)
+ */
+export const getCustomerById = asyncHandler(async (req, res) => {
   const { customerId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(customerId)) {
+    throw new ApiError(400, "Invalid Customer ID format");
+  }
 
   const customer = await Customer.findById(customerId);
-  if (!customer) {
-    throw new ApiError(404, "Customer not found");
-  }
-
-  customer.referral.code = null;
-  await customer.save();
-
-  res.json({
-    success: true,
-    message: "Referral code deleted"
-  });
-});
-
-
-export const getMyReferralCode = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
-
-  const customer = await Customer.findById(userId).select("referral");
 
   if (!customer) {
     throw new ApiError(404, "Customer not found");
   }
 
-  res.status(200).json({
-    success: true,
-    data: {
-      referralCode: customer.referral?.code || null,
-      message:
-        customer.referral?.message ||
-        "Invite your friends to ActivLine. They get $500 off, and you get 1 Month FREE!"
+  // Security check: A franchise admin can only view customers from their own franchise.
+  if (req.user?.role === "FRANCHISE_ADMIN" && customer.accountId !== req.user.accountId) {
+    throw new ApiError(403, "Access Denied. You can only view customers from your franchise.");
+  }
+
+  // Security check: Admin staff can only view customers assigned to them
+  if (req.user?.role === "ADMIN_STAFF") {
+    const assigned = await ChatRoom.exists({
+      assignedStaff: req.user._id,
+      customer: customer._id,
+    });
+
+    if (!assigned) {
+      throw new ApiError(403, "Access Denied. You can only view customers assigned to you.");
     }
-  });
-});
-
-
-// controllers/Customer/customer.controller.js
-
-
-export const getProfileImage = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
-
-  const image = await getProfileImageService(userId);
-
-  res.status(200).json(
-    ApiResponse.success(image, "Profile image fetched successfully")
-  );
-});
-
-export const updateProfileImage = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
-
-  if (!req.file) {
-    throw new ApiError(400, "Profile image file is required");
   }
 
-  const updated = await updateProfileImageService(userId, req.file);
-
-  res.status(200).json(
-    ApiResponse.success(updated, "Profile image updated successfully")
-  );
+  return res
+    .status(200)
+    .json(ApiResponse.success(customer, "Customer details fetched successfully"));
 });
 
-export const deleteProfileImage = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
-
-  await deleteProfileImageService(userId);
-
-  res.status(200).json(
-    ApiResponse.success(null, "Profile image deleted successfully")
-  );
-});
-export const getAllCustomers = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
-
-  const skip = (page - 1) * limit;
-
-  const customers = await Customer.find()
-    .select("-password") // 🔐 hide password
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(Number(limit));
-
-  const totalCustomers = await Customer.countDocuments();
-
-  res.status(200).json({
-    success: true,
-    message: "Customers fetched successfully",
-    data: customers,
-    pagination: {
-      total: totalCustomers,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(totalCustomers / limit),
-    },
+/**
+ * @description Create a new customer
+ * @route POST /api/customer/create
+ * @access Public (or Admin if protected by route middleware)
+ */
+export const createCustomer = asyncHandler(async (req, res) => {
+  const { error, value } = createCustomerSchema.validate(req.body, {
+    abortEarly: false,
+    stripUnknown: true,
   });
-});
 
-
-export const getSingleCustomer = asyncHandler(async (req, res) => {
-  const { customerId } = req.params;
-
-  const customer = await Customer.findById(customerId)
-    .select("-password"); // 🔐 hide password
-
-  if (!customer) {
-    throw new ApiError(404, "Customer not found");
+  if (error) {
+    throw new ApiError(
+      400,
+      error.details.map((detail) => detail.message).join(", ")
+    );
   }
 
-  res.status(200).json({
-    success: true,
-    message: "Customer fetched successfully",
-    data: customer,
-  });
+  const result = await createCustomerService(value, req.files);
+
+  const customerData = result.customer?.toObject
+    ? result.customer.toObject()
+    : result.customer;
+
+  if (customerData?.password) {
+    delete customerData.password;
+  }
+
+  if (!customerData.installationAddress) {
+    customerData.installationAddress = {
+      line1: null,
+      line2: null,
+      city: null,
+      pin: null,
+      state: null,
+      country: null,
+    };
+  }
+
+  if (value.emailId) {
+    await sendCustomerWelcomeEmail({
+      to: value.emailId,
+      userName: result.credentials.userName,
+      password: result.credentials.password,
+      phoneNumber: value.phoneNumber,
+      emailId: value.emailId,
+    });
+  }
+
+  return res.status(201).json(
+    ApiResponse.success(
+      null,
+      "Your account is created in ActivLine"
+    )
+  );
 });

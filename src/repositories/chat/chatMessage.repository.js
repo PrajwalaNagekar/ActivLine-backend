@@ -6,4 +6,4 @@ export const saveMessage = (data) => ChatMessage.create(data);
 export const getMessagesByRoom = (roomId) =>
   ChatMessage.find({ roomId })
     .sort({ createdAt: 1 })
-    .populate("senderId", "fullName name email mobile role"); // 🔥 Populates sender details
+    .populate("senderId", "fullName name email mobile role");

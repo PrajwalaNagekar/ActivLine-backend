@@ -29,9 +29,39 @@ const startServer = async () => {
         //     },
         // });
 
-initSocket(server);
+ initSocket(server);
 
+<<<<<<< HEAD
         const port = process.env.PORT || 8001;
+=======
+        const shutdown = (signal) => {
+            console.log(`Shutting down server due to ${signal}...`);
+            server.close(() => {
+                process.exit(0);
+            });
+            setTimeout(() => process.exit(1), 5000).unref();
+        };
+
+        // Allow nodemon to restart cleanly without leaving the port open
+        process.once("SIGUSR2", () => shutdown("SIGUSR2"));
+        process.once("SIGINT", () => shutdown("SIGINT"));
+        process.once("SIGTERM", () => shutdown("SIGTERM"));
+  
+    const port = process.env.PORT || 8000;
+
+
+        console.log(port);
+
+        server.on("error", (error) => {
+            if (error.code === "EADDRINUSE") {
+                console.error(`ERROR: Port ${port} is already in use. Stop the other process or change PORT in .env.`);
+            } else {
+                console.error("ERROR: Server error:", error);
+            }
+            process.exit(1);
+        });
+
+>>>>>>> 30a4c1dbde874a9679e956e5276ee2c4003b4b6f
         server.listen(port, '0.0.0.0', () => {
             console.log(`🚀!! Server running on ${port} at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
         });
