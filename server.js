@@ -31,9 +31,7 @@ const startServer = async () => {
 
  initSocket(server);
 
-<<<<<<< HEAD
-        const port = process.env.PORT || 8001;
-=======
+
         const shutdown = (signal) => {
             console.log(`Shutting down server due to ${signal}...`);
             server.close(() => {
@@ -61,7 +59,6 @@ const startServer = async () => {
             process.exit(1);
         });
 
->>>>>>> 30a4c1dbde874a9679e956e5276ee2c4003b4b6f
         server.listen(port, '0.0.0.0', () => {
             console.log(`🚀!! Server running on ${port} at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
         });
