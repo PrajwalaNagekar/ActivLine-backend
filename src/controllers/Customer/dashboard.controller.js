@@ -1,4 +1,4 @@
-import { getUsageSummary } from "../../services/customer/dashboar.services.js";
+import { getUsageSummary } from "../../services/Customer/dashboar.services.js";
 
 export const getUserUsage = async (req, res, next) => {
   try {

@@ -1,6 +1,6 @@
 // controllers/activline.controller.js
-import { getUsersFromActivline } from "../../services/customer/activline.servise.js";
-import { getProfileDetailsFromActivline } from "../../services/customer/activline.servise.js";
+import { getUsersFromActivline } from "../../services/Customer/activline.servise.js";
+import { getProfileDetailsFromActivline } from "../../services/Customer/activline.servise.js";
 
 export const getFilteredUsers = async (req, res) => {
   const { page = 1, perPage = 10 } = req.params;

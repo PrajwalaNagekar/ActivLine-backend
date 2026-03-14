@@ -1,6 +1,6 @@
 import { asyncHandler } from "../../utils/AsyncHandler.js";
 import { createLeadSchema } from "../../validations/Customer/lead.validation.js";
-import { createLeadService } from "../../services/customer/lead.service.js";
+import { createLeadService } from "../../services/Customer/lead.service.js";
 import { notifyAdminsOnLeadCreate } 
   from "../../services/Notification/notification.service.js";
 import { ApiResponse } from "../../utils/ApiReponse.js";

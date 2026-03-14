@@ -1,8 +1,8 @@
 import { asyncHandler } from "../../utils/AsyncHandler.js";
 import { ApiError } from "../../utils/ApiError.js";
-import { getActivlineUserDetails ,updateUserInActivline} from "../../services/customer/customerprofile.service.js";
+import { getActivlineUserDetails ,updateUserInActivline} from "../../services/Customer/customerprofile.service.js";
 
-import { generateOtp, verifyOtp } from "../../services/customer/otp.service.js";
+import { generateOtp, verifyOtp } from "../../services/Customer/otp.service.js";
 import Customer from "../../models/Customer/customer.model.js";
 
 export const editUserProfile = asyncHandler(async (req, res) => {

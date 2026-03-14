@@ -5,7 +5,7 @@ import {
   getActivlineUserDetails, 
   editActivlineUserProfile, 
   getCustomerProfile 
-} from "../../services/customer/customerprofile.service.js";
+} from "../../services/Customer/customerprofile.service.js";
 
 /**
  * Get profile for currently authenticated customer

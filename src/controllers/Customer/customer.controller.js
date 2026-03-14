@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import Customer from "../../models/Customer/customer.model.js";
 import ChatRoom from "../../models/chat/chatRoom.model.js";
 import { createCustomerSchema } from "../../validations/Customer/customer.validation.js";
-import { createCustomerService } from "../../services/customer/customer.service.js";
+import { createCustomerService } from "../../services/Customer/customer.service.js";
 import { asyncHandler } from "../../utils/AsyncHandler.js";
 import ApiError from "../../utils/ApiError.js";
 import ApiResponse from "../../utils/ApiReponse.js";
