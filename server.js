@@ -31,11 +31,7 @@ const startServer = async () => {
 
 initSocket(server);
 
-    const port = process.env.PORT || 8000;
-
-
-        console.log(port);
-
+        const port = process.env.PORT || 8001;
         server.listen(port, '0.0.0.0', () => {
             console.log(`🚀!! Server running on ${port} at ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
         });
