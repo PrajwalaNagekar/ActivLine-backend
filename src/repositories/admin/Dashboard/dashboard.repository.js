@@ -3,6 +3,7 @@ import PaymentHistory from "../../../models/payment/paymentHistory.model.js";
 import Customer from "../../../models/Customer/customer.model.js";
 import Admin from "../../../models/auth/auth.model.js";
 import FranchiseAdmin from "../../../models/Franchise/franchiseAdmin.model.js";
+import Franchise from "../../../models/Franchise/franchise.model.js";
 
 /* OPEN TICKETS */
 export const countOpenTickets = () =>
@@ -412,12 +413,6 @@ export const getResolvedTicketsList = async ({
         assignedFranchiseAdmin: 1,
         assignedStaffName: { $ifNull: ["$assignedStaffDoc.name", null] },
         assignedStaffEmail: { $ifNull: ["$assignedStaffDoc.email", null] },
-        assignedFranchiseAdminName: {
-          $ifNull: ["$assignedFranchiseAdminDoc.name", null],
-        },
-        assignedFranchiseAdminEmail: {
-          $ifNull: ["$assignedFranchiseAdminDoc.email", null],
-        },
         customer: {
           _id: "$customerDoc._id",
           name: {
@@ -556,5 +551,159 @@ export const getResolvedTicketsByMonthAll = ({ startDate, endDate }) => {
       },
     },
     { $sort: { _id: 1 } },
+  ]);
+};
+
+export const getTopResolversByStaffAll = async ({
+  startDate,
+  endDate,
+  limit = 10,
+} = {}) => {
+  const match = { status: "RESOLVED", assignedStaff: { $ne: null } };
+
+  if (startDate || endDate) {
+    match.updatedAt = {};
+    if (startDate) match.updatedAt.$gte = startDate;
+    if (endDate) match.updatedAt.$lte = endDate;
+  }
+
+  const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+
+  return ChatRoom.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: "$assignedStaff",
+        resolvedCount: { $sum: 1 },
+      },
+    },
+    { $sort: { resolvedCount: -1 } },
+    { $limit: safeLimit },
+    {
+      $lookup: {
+        from: Admin.collection.name,
+        localField: "_id",
+        foreignField: "_id",
+        as: "staffDoc",
+      },
+    },
+    {
+      $unwind: {
+        path: "$staffDoc",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        id: "$_id",
+        role: { $literal: "ADMIN_STAFF" },
+        resolvedCount: 1,
+        name: { $ifNull: ["$staffDoc.name", null] },
+        email: { $ifNull: ["$staffDoc.email", null] },
+      },
+    },
+  ]);
+};
+
+export const getTopResolversByFranchiseAdminAll = async ({
+  startDate,
+  endDate,
+  limit = 10,
+} = {}) => {
+  const match = { status: "RESOLVED", assignedFranchiseAdmin: { $ne: null } };
+
+  if (startDate || endDate) {
+    match.updatedAt = {};
+    if (startDate) match.updatedAt.$gte = startDate;
+    if (endDate) match.updatedAt.$lte = endDate;
+  }
+
+  const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+
+  return ChatRoom.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: "$assignedFranchiseAdmin",
+        resolvedCount: { $sum: 1 },
+      },
+    },
+    { $sort: { resolvedCount: -1 } },
+    { $limit: safeLimit },
+    {
+      $lookup: {
+        from: FranchiseAdmin.collection.name,
+        localField: "_id",
+        foreignField: "_id",
+        as: "adminDoc",
+      },
+    },
+    {
+      $unwind: {
+        path: "$adminDoc",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        id: "$_id",
+        role: { $literal: "FRANCHISE_ADMIN" },
+        resolvedCount: 1,
+        name: { $ifNull: ["$adminDoc.name", null] },
+        email: { $ifNull: ["$adminDoc.email", null] },
+      },
+    },
+  ]);
+};
+
+export const getTopRevenueByFranchiseAll = async ({
+  startDate,
+  limit = 10,
+} = {}) => {
+  const match = { status: "SUCCESS" };
+
+  if (startDate) {
+    match.createdAt = { $gte: startDate };
+  }
+
+  const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+
+  return PaymentHistory.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: "$accountId",
+        totalAmount: { $sum: "$planAmount" },
+        paymentCount: { $sum: 1 },
+      },
+    },
+    { $sort: { totalAmount: -1 } },
+    { $limit: safeLimit },
+    {
+      $lookup: {
+        from: Franchise.collection.name,
+        localField: "_id",
+        foreignField: "accountId",
+        as: "franchiseDoc",
+      },
+    },
+    {
+      $unwind: {
+        path: "$franchiseDoc",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        accountId: "$_id",
+        totalAmount: 1,
+        paymentCount: 1,
+        companyName: { $ifNull: ["$franchiseDoc.companyName", null] },
+        accountName: { $ifNull: ["$franchiseDoc.accountName", null] },
+      },
+    },
   ]);
 };

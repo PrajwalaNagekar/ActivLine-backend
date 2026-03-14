@@ -10,6 +10,7 @@ import { getFranchiseAdmins } from "../../controllers/franchise/admin.controller
 import { verifyJWT } from "../../middlewares/auth.middleware.js";
 import { allowRoles } from "../../middlewares/role.middleware.js";
 import { getReportSummary } from "../../controllers/Admin/Dashboard/dashboard.controller.js";
+import { getFranchiseCustomerCount } from "../../controllers/franchise/customerCount.controller.js";
 
 const router = Router();
 
@@ -26,6 +27,12 @@ router.get(
 
 router.get("/", fetchFranchiseAccounts);
 router.get("/:accountId", fetchFranchiseAccounts);
+router.get(
+  "/:accountId/customers/count",
+  verifyJWT,
+  allowRoles("ADMIN", "SUPER_ADMIN", "FRANCHISE_ADMIN"),
+  getFranchiseCustomerCount
+);
 router.get("/:accountId/profiles", getProfiles);
 router.get("/:accountId/profiles/:profileId", getProfiles);
 router.get("/:accountId/profile-details/:profileId", getProfileDetails);

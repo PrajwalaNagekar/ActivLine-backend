@@ -207,13 +207,23 @@ export const getGlobalGraphSummary = async ({ months = 6 } = {}) => {
   const safeMonths = Math.min(Math.max(Number(months) || 6, 1), 24);
   const { startDate, labels } = buildMonthRange(safeMonths);
 
-  const [revenueRows, customerRows, resolvedRows] = await Promise.all([
+  const [
+    revenueRows,
+    customerRows,
+    resolvedRows,
+    resolvedByStaff,
+    resolvedByFranchiseAdmin,
+    revenueByFranchise,
+  ] = await Promise.all([
     Repo.getMonthlyRevenueAll({ startDate }),
     Repo.getCustomersCreatedByMonthAll({ startDate }),
     Repo.getResolvedTicketsByMonthAll({
       startDate,
       endDate: new Date(),
     }),
+    Repo.getTopResolversByStaffAll({ startDate, endDate: new Date(), limit: 10 }),
+    Repo.getTopResolversByFranchiseAdminAll({ startDate, endDate: new Date(), limit: 10 }),
+    Repo.getTopRevenueByFranchiseAll({ startDate, limit: 10 }),
   ]);
 
   const revenueMap = new Map(revenueRows.map((row) => [row._id, row]));
@@ -236,6 +246,10 @@ export const getGlobalGraphSummary = async ({ months = 6 } = {}) => {
     resolvedCount: resolvedMap.get(label)?.resolvedCount || 0,
   }));
 
+  const topResolvers = [...resolvedByStaff, ...resolvedByFranchiseAdmin].sort(
+    (a, b) => Number(b.resolvedCount || 0) - Number(a.resolvedCount || 0)
+  );
+
   return {
     filters: {
       months: safeMonths,
@@ -243,5 +257,7 @@ export const getGlobalGraphSummary = async ({ months = 6 } = {}) => {
     monthlyRevenue,
     monthlyCustomers,
     monthlyResolvedTickets,
+    topResolvers,
+    topRevenueFranchises: revenueByFranchise,
   };
 };
