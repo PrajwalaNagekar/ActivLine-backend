@@ -108,3 +108,10 @@ export const getReportSummary = asyncHandler(async (req, res) => {
 
   res.json(ApiResponse.success(data, "Report summary fetched"));
 });
+
+export const getGlobalGraphSummary = asyncHandler(async (req, res) => {
+  const { months } = req.query;
+  const data = await DashboardService.getGlobalGraphSummary({ months });
+
+  res.json(ApiResponse.success(data, "Global graph summary fetched"));
+});

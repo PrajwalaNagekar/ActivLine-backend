@@ -8,6 +8,7 @@ import {
   getRecentPayments,
   getAssignedRoomsCount,
   getReportSummary,
+  getGlobalGraphSummary,
 } from "../../../controllers/Admin/Dashboard/dashboard.controller.js";
 import { verifyJWT } from "../../../middlewares/auth.middleware.js";
 import { allowRoles } from "../../../middlewares/role.middleware.js";
@@ -24,4 +25,5 @@ router.get("/recent-tickets", getRecentTickets);
 router.get("/recent-payments", getRecentPayments);
 router.get("/assigned-rooms", getAssignedRoomsCount);
 router.get("/report-summary", getReportSummary);
+router.get("/graph-summary", allowRoles("ADMIN"), getGlobalGraphSummary);
 export default router;

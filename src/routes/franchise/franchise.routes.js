@@ -7,6 +7,9 @@ import { upload } from "../../utils/multerConfig.js";
 import { getProfiles } from "../../controllers/franchise/profile.controller.js";
 import { getProfileDetails } from "../../controllers/franchise/profileDetails.controller.js";
 import { getFranchiseAdmins } from "../../controllers/franchise/admin.controller.js";
+import { verifyJWT } from "../../middlewares/auth.middleware.js";
+import { allowRoles } from "../../middlewares/role.middleware.js";
+import { getReportSummary } from "../../controllers/Admin/Dashboard/dashboard.controller.js";
 
 const router = Router();
 
@@ -14,6 +17,12 @@ router.post("/admins", upload.none(), fetchAllAdmins);
 
 router.get("/group-details", fetchGroupDetails);
 router.get("/sub-plans/:groupId", fetchSubPlans);
+router.get(
+  "/report-summary",
+  verifyJWT,
+  allowRoles("ADMIN", "ADMIN_STAFF", "FRANCHISE_ADMIN"),
+  getReportSummary
+);
 
 router.get("/", fetchFranchiseAccounts);
 router.get("/:accountId", fetchFranchiseAccounts);
