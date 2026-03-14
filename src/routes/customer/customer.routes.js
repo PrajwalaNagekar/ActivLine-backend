@@ -3,7 +3,7 @@ import {
   createCustomer,
   getCustomers,
   getCustomerById,
-} from "../../controllers/customer/customer.controller.js";
+} from "../../controllers/Customer/customer.controller.js";
 import { upload } from "../../middlewares/multer.middleware.js";
 import { verifyJWT } from "../../middlewares/auth.middleware.js";
 import { allowRoles } from "../../middlewares/role.middleware.js";
