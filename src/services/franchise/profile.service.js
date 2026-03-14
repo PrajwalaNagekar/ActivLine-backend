@@ -1,6 +1,7 @@
 import axios from "axios";
 import Franchise from "../../models/Franchise/franchise.model.js";
 import { fetchProfileDetails } from "./profileDetails.service.js";
+import { getGroupDetails } from "./groupDetails.service.js";
 
 const toPositiveInt = (value, fallback) => {
   const parsed = Number.parseInt(value, 10);
@@ -118,6 +119,125 @@ export const fetchProfilesWithDetailsByFranchise = async (accountId, options = {
     return profile.id || profile.profileId || profile.ProfileId || null;
   };
 
+  const GROUP_ID_KEYS = [
+    "groupId",
+    "groupID",
+    "group_id",
+    "Group_id",
+    "userGroupId",
+    "Group ID",
+    "Group Id",
+  ];
+  const PROFILE_ID_KEYS = [
+    "profileId",
+    "profileID",
+    "profile_id",
+    "Profile_id",
+    "Profile Id",
+    "activlineUserId",
+  ];
+
+  const normalizeText = (value) => {
+    if (value === undefined || value === null) return null;
+    const text = String(value).trim();
+    return text || null;
+  };
+
+  const normalizeKey = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+  const extractTextByKeys = (value, keys) => {
+    if (!value || typeof value !== "object") return null;
+
+    const normalizedTargetKeys = keys.map((k) => normalizeKey(k));
+
+    for (const [key, raw] of Object.entries(value)) {
+      if (raw === undefined || raw === null) continue;
+      if (!normalizedTargetKeys.includes(normalizeKey(key))) continue;
+
+      const asString = String(raw).trim();
+      if (asString) return asString;
+    }
+
+    // Support rows like: { property: "Group ID", value: "..." }
+    if (
+      value.property !== undefined &&
+      value.value !== undefined &&
+      value.value !== null
+    ) {
+      const normalizedProperty = normalizeKey(value.property);
+
+      if (normalizedTargetKeys.includes(normalizedProperty)) {
+        const asString = String(value.value).trim();
+        if (asString) return asString;
+      }
+    }
+
+    for (const child of Object.values(value)) {
+      if (child && typeof child === "object") {
+        const found = extractTextByKeys(child, keys);
+        if (found) return found;
+      }
+    }
+
+    return null;
+  };
+
+  const extractRowsFromGroupDetails = (payload) => {
+    if (!payload) return [];
+
+    const candidateRoots = [
+      payload?.data?.data,
+      payload?.data,
+      payload?.message?.data,
+      payload?.message,
+      payload,
+    ];
+
+    for (const candidate of candidateRoots) {
+      if (Array.isArray(candidate)) return candidate;
+      if (candidate && typeof candidate === "object") {
+        for (const value of Object.values(candidate)) {
+          if (Array.isArray(value)) return value;
+        }
+      }
+    }
+
+    return [];
+  };
+
+  const resolveGroupMapping = async () => {
+    try {
+      const groupDetailsRes = await getGroupDetails(accountId);
+      const rows = extractRowsFromGroupDetails(groupDetailsRes);
+
+      const profileIdToGroupId = new Map();
+      const groupIds = new Set();
+
+      for (const row of rows) {
+        const groupId = normalizeText(extractTextByKeys(row, GROUP_ID_KEYS));
+        const profileId = normalizeText(extractTextByKeys(row, PROFILE_ID_KEYS));
+
+        if (groupId) groupIds.add(groupId);
+        if (groupId && profileId && !profileIdToGroupId.has(profileId)) {
+          profileIdToGroupId.set(profileId, groupId);
+        }
+      }
+
+      return {
+        profileIdToGroupId,
+        groupIds: Array.from(groupIds),
+      };
+    } catch {
+      return {
+        profileIdToGroupId: new Map(),
+        groupIds: [],
+      };
+    }
+  };
+
   const propertiesToHide = new Set([
     "Reset billing cycle",
     "Day of the month to reset billing cycle",
@@ -158,6 +278,19 @@ export const fetchProfilesWithDetailsByFranchise = async (accountId, options = {
     return sanitizeDetails(base);
   };
 
+  const groupMapping = await resolveGroupMapping();
+  const getGroupIdForProfile = (profileId) => {
+    const normalizedProfileId = normalizeText(profileId);
+    if (!normalizedProfileId) return null;
+
+    const mapped = groupMapping.profileIdToGroupId.get(normalizedProfileId);
+    if (mapped) return mapped;
+
+    if (groupMapping.groupIds.length === 1) return groupMapping.groupIds[0];
+
+    return null;
+  };
+
   if (base.isSingle) {
     if (!base.item) return base;
 
@@ -170,6 +303,10 @@ export const fetchProfilesWithDetailsByFranchise = async (accountId, options = {
       ...base,
       item: {
         ...base.item,
+        Profile: {
+          ...(base.item.Profile || {}),
+          groupId: getGroupIdForProfile(profileId),
+        },
         details: normalizeDetails(details),
       },
     };
@@ -184,6 +321,10 @@ export const fetchProfilesWithDetailsByFranchise = async (accountId, options = {
 
       return {
         ...entry,
+        Profile: {
+          ...(entry.Profile || {}),
+          groupId: getGroupIdForProfile(profileId),
+        },
         details: normalizeDetails(details),
       };
     })
