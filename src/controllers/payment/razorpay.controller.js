@@ -19,7 +19,15 @@ const AMOUNT_KEYS = [
   "mrp",
 ];
 
-const GROUP_ID_KEYS = ["groupId", "groupID", "group_id", "userGroupId"];
+const GROUP_ID_KEYS = [
+  "groupId",
+  "groupID",
+  "group_id",
+  "Group_id",
+  "Group ID",
+  "Group Id",
+  "userGroupId",
+];
 const ACCOUNT_ID_KEYS = ["accountId", "accountID", "account_id", "account"];
 const PROFILE_ID_KEYS = [
   "profileId",
@@ -59,13 +67,17 @@ const extractTextByKeys = (value, keys) => {
     String(k).toLowerCase().replace(/[^a-z0-9]/g, "")
   );
 
-  for (const key of keys) {
-    if (value[key] !== undefined && value[key] !== null) {
-      const asString = String(value[key]).trim();
-      if (asString) {
-        return asString;
-      }
-    }
+  for (const [key, raw] of Object.entries(value)) {
+    if (raw === undefined || raw === null) continue;
+
+    const normalizedKey = String(key)
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+    if (!normalizedTargetKeys.includes(normalizedKey)) continue;
+
+    const asString = String(raw).trim();
+    if (asString) return asString;
   }
 
   // Support payloads that use rows like: { property: "Account ID", value: "..." }
@@ -404,6 +416,8 @@ export const createPlanOrder = async (req, res, next) => {
       profilePayload?.profileName ||
       `plan_${profileId}`;
 
+    const billingMeta = getBillingMeta(profilePayload);
+
     const amountFromPlan = extractAmount(profilePayload);
     const finalAmount =
       Number.isFinite(amountFromPlan) && amountFromPlan > 0
@@ -492,11 +506,18 @@ export const createPlanOrder = async (req, res, next) => {
         accountId: finalAccountId,
         planName,
         planAmount: finalAmount,
+        billingPlanId: billingMeta.billingPlanId,
+        totalPrice: billingMeta.totalPrice,
       },
     });
   } catch (error) {
     return next(error);
   }
+};
+
+export const createPlanOrderFromBody = async (req, res, next) => {
+  req.params = { ...(req.params || {}), profileId: req.body?.profileId };
+  return createPlanOrder(req, res, next);
 };
 
 export const verifyPlanPayment = async (req, res, next) => {
